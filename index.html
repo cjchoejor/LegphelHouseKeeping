@@ -43,6 +43,20 @@
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
     }
 
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .logo {
+      height: 40px;
+      width: auto;
+      flex: 0 0 auto;
+    }
+
+    .brand-text { min-width: 0; }
+
     header h1 {
       margin: 0;
       font-size: 18px;
@@ -213,8 +227,13 @@
 
 <body>
   <header>
-    <h1>Legphel Housekeeping</h1>
-    <div class="sub" id="rangeLabel">&nbsp;</div>
+    <div class="brand">
+      <img src="legphel-logo.png" alt="Legphel logo" class="logo">
+      <div class="brand-text">
+        <h1>Legphel Housekeeping</h1>
+        <div class="sub" id="rangeLabel">&nbsp;</div>
+      </div>
+    </div>
     <div class="controls">
       <div class="field">
         <label for="startDate">From</label>
