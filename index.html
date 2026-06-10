@@ -269,6 +269,13 @@
       font-weight: 700;
       color: var(--blue-dark);
       border-right: 2px solid var(--blue);
+      /* keep the frozen column narrow: rooms stack vertically instead of widening */
+      white-space: normal;
+      width: 52px;
+      min-width: 52px;
+      max-width: 52px;
+      padding: 6px 4px;
+      line-height: 1.3;
     }
     /* top-left cell sits above both */
     table.grid thead th.sticky-col { z-index: 4; background: var(--ink); color: #fff; }
@@ -279,11 +286,21 @@
       color: #fff;
       text-align: left;
       font-weight: 600;
-      padding: 8px 12px;
+      padding: 0;
+      position: sticky;
+      top: var(--grid-head-h, 34px);   /* parks just under the column-title row */
+      z-index: 4;
+    }
+    /* contents pinned to the left so they stay visible when scrolling sideways */
+    table.grid tr.date-row .date-inner {
       position: sticky;
       left: 0;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      white-space: nowrap;
     }
-    table.grid tr.date-row .row-stats { display: inline-flex; gap: 6px; margin-left: 10px; vertical-align: middle; }
 
     table.grid td.cell-pref {
       background: #fdeaea;
@@ -292,6 +309,12 @@
       text-align: left;
       color: #8a1f1f;
     }
+
+    /* zebra striping (alternate rows light grey) */
+    table.grid tr.alt td { background: #f1f3f6; }
+    table.grid tr.alt td.sticky-col { background: #e3e8f5; }
+    table.grid tr.alt td.cell-pref { background: #fbe1e1; }
+
     table.grid tr.blocked-row td { background: var(--warn-bg); }
     table.grid tr.blocked-row td.sticky-col { background: #fff4cc; color: #a17f00; }
     table.grid td.cell-name { text-align: left; white-space: normal; min-width: 130px; }
@@ -350,6 +373,16 @@
       if (s === null || s === undefined) return '';
       return String(s).replace(/[&<>"']/g, m =>
         ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m]));
+    }
+
+    // Stack a "601, 602, 701" room list vertically so the frozen column
+    // stays narrow (grows taller, never wider) on a phone.
+    function stackRooms(roomNo) {
+      return String(roomNo ?? '')
+        .split(',')
+        .map(r => escapeHtml(r.trim()))
+        .filter(Boolean)
+        .join('<br>') || '—';
     }
 
     function bedText(king, twin) {
@@ -454,6 +487,7 @@
       });
       html += '</tr></thead><tbody>';
 
+      let rowIdx = 0; // for zebra striping across data rows
       data.forEach(day => {
         const groups = day.groups || [];
         const dt = day.day_totals || {};
@@ -461,13 +495,11 @@
         const totalOcc = dt.total_occupants_for_the_day ?? 0;
 
         // full-width date separator row
-        html += `<tr class="date-row"><td colspan="${colSpan}">
-          ${escapeHtml(prettyDate(day.reserved_date))}
-          <span class="row-stats">
-            <span class="stat stat-rooms">${totalRooms} rooms</span>
-            <span class="stat stat-occ">${totalOcc} guests</span>
-          </span>
-        </td></tr>`;
+        html += `<tr class="date-row"><td colspan="${colSpan}"><div class="date-inner">
+          <span>${escapeHtml(prettyDate(day.reserved_date))}</span>
+          <span class="stat stat-rooms">${totalRooms} rooms</span>
+          <span class="stat stat-occ">${totalOcc} guests</span>
+        </div></td></tr>`;
 
         if (groups.length === 0) {
           html += `<tr><td colspan="${colSpan}" style="color:var(--muted)">No rooms booked.</td></tr>`;
@@ -478,8 +510,9 @@
           const blocked = g.reservation_status === 'blocked';
           const beds = bedText(g.king_bed, g.twin_bed) || '—';
           const pref = (g.special_preferences || '').trim();
-          html += `<tr class="${blocked ? 'blocked-row' : ''}">
-            <td class="sticky-col">${escapeHtml(g.room_no)}${blocked ? ' 🔒' : ''}</td>
+          const alt = (rowIdx++ % 2 === 0) ? ' alt' : '';
+          html += `<tr class="${blocked ? 'blocked-row' : ''}${alt}">
+            <td class="sticky-col">${stackRooms(g.room_no)}${blocked ? '<br>🔒' : ''}</td>
             <td class="cell-name">${escapeHtml(g.primary_customer_name ?? '—')}</td>
             <td>${beds}</td>
             <td>${g.adults ?? 0}</td>
@@ -497,6 +530,10 @@
       html += '</tbody></table></div>';
       el.className = '';
       el.innerHTML = html;
+
+      // park the sticky date bar exactly under the column-title row
+      const thead = el.querySelector('table.grid thead');
+      if (thead) document.documentElement.style.setProperty('--grid-head-h', thead.offsetHeight + 'px');
     }
 
     // pick the active view
