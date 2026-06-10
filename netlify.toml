@@ -1,0 +1,12 @@
+# Netlify configuration
+
+[build]
+  # No build step — this is a plain static site.
+  publish = "."
+  functions = "netlify/functions"
+
+# Optional friendlier URL: /api/reservations -> the function
+[[redirects]]
+  from = "/api/reservations"
+  to = "/.netlify/functions/reservations"
+  status = 200
