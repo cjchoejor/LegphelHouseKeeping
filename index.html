@@ -18,6 +18,7 @@
       --bg: #f3f4f6;
       --warn-bg: #fff8e1;
       --warn-border: #f5c518;
+      --header-h: 150px; /* measured live in JS */
     }
 
     html, body { margin: 0; padding: 0; }
@@ -108,7 +109,8 @@
     /* ---- Date section header (sticky under top bar) ---- */
     .day-header {
       position: sticky;
-      top: 0;
+      top: var(--header-h);
+      z-index: 10;
       background: var(--ink);
       color: #fff;
       padding: 8px 14px;
@@ -157,6 +159,13 @@
     .card.blocked .room-no { color: #a17f00; }
 
     .beds { font-size: 13px; color: var(--ink); text-align: right; white-space: nowrap; }
+    .beds .bed-badge {
+      background: #fdeaea;
+      color: #c0392b;
+      padding: 3px 8px;
+      border-radius: 8px;
+      font-weight: 600;
+    }
 
     .cust { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
 
@@ -171,7 +180,7 @@
 
     .pref {
       margin-top: 10px;
-      background: #eef4ff;
+      background: #fdeaea;
       border-radius: 8px;
       padding: 8px 10px;
       font-size: 14px;
@@ -252,7 +261,7 @@
       const parts = [];
       if (k > 0) parts.push(`${k} King`);
       if (t > 0) parts.push(`${t} Twin`);
-      return parts.length ? '🛏 ' + parts.join(' · ') : '';
+      return parts.length ? `<span class="bed-badge">🛏 ${parts.join(' · ')}</span>` : '';
     }
 
     function prettyDate(value) {
@@ -305,7 +314,7 @@
               <span class="k">Adults</span><span class="v">${g.adults ?? 0}</span>
               <span class="k">Children</span><span class="v">${g.children ?? 0}</span>
               <span class="k">Children 6+</span><span class="v">${g.children_above_six ?? 0}</span>
-              <span class="k">In room</span><span class="v">${g.total_occupants_for_the_room ?? 0}</span>
+              <span class="k">Total Occupants</span><span class="v">${g.total_occupants_for_the_room ?? 0}</span>
               <span class="k">Rooms reserved</span><span class="v">${g.rooms_reserved ?? 0}</span>
               <span class="k">Reserved by</span><span class="v">${escapeHtml(g.reserved_by ?? '—')}</span>
             </div>
@@ -342,6 +351,13 @@
       }
     }
 
+    // Keep the sticky date headers parked exactly under the top bar,
+    // even when the controls wrap to more rows on narrow screens.
+    function syncHeaderHeight() {
+      const h = document.querySelector('header').offsetHeight;
+      document.documentElement.style.setProperty('--header-h', h + 'px');
+    }
+
     function init() {
       const today = thimphuToday();
       const tomorrow = nextDay(today);
@@ -356,6 +372,10 @@
       });
 
       document.getElementById('fetchBtn').addEventListener('click', fetchAndRender);
+
+      syncHeaderHeight();
+      window.addEventListener('resize', syncHeaderHeight);
+
       fetchAndRender();
     }
 
