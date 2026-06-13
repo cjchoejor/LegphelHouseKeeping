@@ -96,19 +96,27 @@
       width: 100%;
     }
 
-    .controls button {
-      flex: 1 1 30%;
-      padding: 11px;
+    .btnrow {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .btnrow button {
+      flex: 1 1 0;
+      min-width: 0;
+      padding: 11px 8px;
       border: none;
       border-radius: 8px;
       background: #fff;
       color: var(--blue-dark);
-      font-size: 15px;
+      font-size: 14px;
       font-weight: 600;
       cursor: pointer;
+      white-space: nowrap;
     }
 
-    .controls button:active { transform: scale(0.99); }
+    .btnrow button:active { transform: scale(0.99); }
 
     /* ---- Body ---- */
     main { padding: 12px 12px 0; max-width: 640px; margin: 0 auto; }
@@ -335,6 +343,52 @@
     .capture table.grid th,
     .capture table.grid td,
     .capture table.grid .date-inner { position: static !important; }
+
+    /* ---- Image preview / save popup ---- */
+    .modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.75);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 14px;
+    }
+    .modal-box {
+      background: #fff;
+      border-radius: 12px;
+      padding: 14px;
+      width: 100%;
+      max-width: 520px;
+      max-height: 92vh;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .modal-hint { margin: 0; font-size: 13px; color: var(--muted); text-align: center; }
+    .modal-img {
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+    .modal-img img { display: block; width: 100%; height: auto; }
+    .modal-actions { display: flex; gap: 8px; }
+    .modal-actions button {
+      flex: 1;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      background: var(--blue);
+      color: #fff;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .modal-actions button.ghost { background: #e5e7eb; color: var(--ink); }
   </style>
 </head>
 
@@ -356,6 +410,8 @@
         <label for="endDate">To</label>
         <input type="date" id="endDate">
       </div>
+    </div>
+    <div class="btnrow">
       <button id="fetchBtn">Refresh</button>
       <button id="viewToggleBtn">▦ Table view</button>
       <button id="saveImgBtn" style="display:none">💾 Save</button>
@@ -365,6 +421,17 @@
   <main>
     <div id="content" class="status">Loading…</div>
   </main>
+
+  <div id="imgModal" class="modal" style="display:none">
+    <div class="modal-box">
+      <p class="modal-hint">Press &amp; hold the image to save it to Photos — or tap Share / Save.</p>
+      <div class="modal-img"><img id="modalImg" alt="Table snapshot"></div>
+      <div class="modal-actions">
+        <button id="shareImgBtn">Share / Save</button>
+        <button id="closeModalBtn" class="ghost">Close</button>
+      </div>
+    </div>
+  </div>
 
   <script>
     // On Netlify (https) we go through the serverless proxy so the browser never
@@ -561,7 +628,9 @@
       if (thead) document.documentElement.style.setProperty('--grid-head-h', thead.offsetHeight + 'px');
     }
 
-    // Capture the whole table (incl. off-screen parts) and save it as an image.
+    let lastImageFile = null; // the generated PNG, shared/saved from the popup
+
+    // Capture the whole table (incl. off-screen parts) and show it in the save popup.
     async function saveTableImage() {
       if (!lastData || !lastData.length) { alert('Nothing to save yet — fetch some dates first.'); return; }
       if (typeof html2canvas === 'undefined') { alert('Image library not loaded. Check your connection and try again.'); return; }
@@ -586,31 +655,39 @@
         const canvas = await html2canvas(wrap, { scale: 2, backgroundColor: '#ffffff' });
         const fileName = `housekeeping_${start}_to_${end}.png`;
 
-        canvas.toBlob(async (blob) => {
-          if (!blob) { alert('Could not create the image.'); return; }
-          const file = new File([blob], fileName, { type: 'image/png' });
+        // show the image in the popup so the user can long-press to save (iOS-safe)
+        document.getElementById('modalImg').src = canvas.toDataURL('image/png');
 
-          // Phone-friendly: native share sheet -> "Save Image" goes to gallery
-          if (navigator.canShare && navigator.canShare({ files: [file] })) {
-            try {
-              await navigator.share({ files: [file], title: 'Housekeeping' });
-            } catch (e) { /* user cancelled the share sheet */ }
-          } else {
-            // fallback: normal download
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.download = fileName;
-            link.href = url;
-            link.click();
-            URL.revokeObjectURL(url);
-          }
-        }, 'image/png');
+        // prepare a File for the Share/Save button (fired by a fresh tap inside the popup)
+        await new Promise(resolve => canvas.toBlob(blob => {
+          lastImageFile = blob ? new File([blob], fileName, { type: 'image/png' }) : null;
+          resolve();
+        }, 'image/png'));
+
+        document.getElementById('imgModal').style.display = 'flex';
       } catch (err) {
-        alert('Could not save image: ' + err.message);
+        alert('Could not create image: ' + err.message);
       } finally {
         document.body.removeChild(wrap);
         btn.textContent = label;
         btn.disabled = false;
+      }
+    }
+
+    // Share/save the generated image — runs on a direct tap so iOS allows it.
+    async function shareImage() {
+      if (!lastImageFile) return;
+      if (navigator.canShare && navigator.canShare({ files: [lastImageFile] })) {
+        try {
+          await navigator.share({ files: [lastImageFile], title: 'Housekeeping' });
+        } catch (e) { /* user dismissed the share sheet */ }
+      } else {
+        const url = URL.createObjectURL(lastImageFile);
+        const link = document.createElement('a');
+        link.download = lastImageFile.name;
+        link.href = url;
+        link.click();
+        URL.revokeObjectURL(url);
       }
     }
 
@@ -676,6 +753,10 @@
       });
 
       document.getElementById('saveImgBtn').addEventListener('click', saveTableImage);
+      document.getElementById('shareImgBtn').addEventListener('click', shareImage);
+      document.getElementById('closeModalBtn').addEventListener('click', function () {
+        document.getElementById('imgModal').style.display = 'none';
+      });
 
       syncHeaderHeight();
       window.addEventListener('resize', syncHeaderHeight);
