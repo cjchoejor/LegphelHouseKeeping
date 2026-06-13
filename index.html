@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <meta name="theme-color" content="#4a90e2" />
   <title>Legphel Housekeeping</title>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <style>
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
@@ -96,7 +97,7 @@
     }
 
     .controls button {
-      flex: 1 1 45%;
+      flex: 1 1 30%;
       padding: 11px;
       border: none;
       border-radius: 8px;
@@ -318,6 +319,22 @@
     table.grid tr.blocked-row td { background: var(--warn-bg); }
     table.grid tr.blocked-row td.sticky-col { background: #fff4cc; color: #a17f00; }
     table.grid td.cell-name { text-align: left; white-space: normal; min-width: 130px; }
+
+    /* off-screen full render used only for the Save-as-image snapshot */
+    .capture {
+      position: fixed;
+      left: -10000px;
+      top: 0;
+      background: #fff;
+      padding: 16px;
+      width: max-content;
+    }
+    .capture .cap-title { font-size: 16px; font-weight: 700; color: var(--ink); margin: 0 0 12px; }
+    .capture table.grid { box-shadow: none; }
+    /* sticky breaks image capture — pin everything static for the snapshot */
+    .capture table.grid th,
+    .capture table.grid td,
+    .capture table.grid .date-inner { position: static !important; }
   </style>
 </head>
 
@@ -341,6 +358,7 @@
       </div>
       <button id="fetchBtn">Refresh</button>
       <button id="viewToggleBtn">▦ Table view</button>
+      <button id="saveImgBtn" style="display:none">💾 Save</button>
     </div>
   </header>
 
@@ -469,19 +487,15 @@
       </div>`;
     }
 
-    function renderTable(data) {
-      const el = document.getElementById('content');
-      if (!data || data.length === 0) {
-        el.className = 'status';
-        el.textContent = 'No reservations for the selected dates.';
-        return;
-      }
+    const TABLE_COLS = ['Room', 'Customer', 'Beds', 'Adults', 'Children',
+      'Child 6+', 'Occ. in Rooms', 'Rooms Res.', 'Reserved By', 'Ref No', 'Special Preferences'];
 
-      const cols = ['Room', 'Customer', 'Beds', 'Adults', 'Children',
-        'Child 6+', 'Occ. in Rooms', 'Rooms Res.', 'Reserved By', 'Ref No', 'Special Preferences'];
+    // builds just the <table>…</table> markup, shared by the on-screen view and the image snapshot
+    function tableMarkup(data) {
+      const cols = TABLE_COLS;
       const colSpan = cols.length;
 
-      let html = '<div class="table-scroll"><table class="grid"><thead><tr>';
+      let html = '<table class="grid"><thead><tr>';
       cols.forEach((c, i) => {
         html += `<th class="${i === 0 ? 'sticky-col' : ''}">${c}</th>`;
       });
@@ -527,13 +541,77 @@
         });
       });
 
-      html += '</tbody></table></div>';
+      html += '</tbody></table>';
+      return html;
+    }
+
+    function renderTable(data) {
+      const el = document.getElementById('content');
+      if (!data || data.length === 0) {
+        el.className = 'status';
+        el.textContent = 'No reservations for the selected dates.';
+        return;
+      }
+
       el.className = '';
-      el.innerHTML = html;
+      el.innerHTML = '<div class="table-scroll">' + tableMarkup(data) + '</div>';
 
       // park the sticky date bar exactly under the column-title row
       const thead = el.querySelector('table.grid thead');
       if (thead) document.documentElement.style.setProperty('--grid-head-h', thead.offsetHeight + 'px');
+    }
+
+    // Capture the whole table (incl. off-screen parts) and save it as an image.
+    async function saveTableImage() {
+      if (!lastData || !lastData.length) { alert('Nothing to save yet — fetch some dates first.'); return; }
+      if (typeof html2canvas === 'undefined') { alert('Image library not loaded. Check your connection and try again.'); return; }
+
+      const btn = document.getElementById('saveImgBtn');
+      const label = btn.textContent;
+      btn.textContent = 'Saving…';
+      btn.disabled = true;
+
+      const start = document.getElementById('startDate').value;
+      const end = document.getElementById('endDate').value;
+
+      // render the full table off-screen (no scroll box, no sticky)
+      const wrap = document.createElement('div');
+      wrap.className = 'capture';
+      wrap.innerHTML =
+        `<div class="cap-title">Legphel Housekeeping &nbsp;·&nbsp; ${escapeHtml(prettyDate(start))} – ${escapeHtml(prettyDate(end))}</div>`
+        + tableMarkup(lastData);
+      document.body.appendChild(wrap);
+
+      try {
+        const canvas = await html2canvas(wrap, { scale: 2, backgroundColor: '#ffffff' });
+        const fileName = `housekeeping_${start}_to_${end}.png`;
+
+        canvas.toBlob(async (blob) => {
+          if (!blob) { alert('Could not create the image.'); return; }
+          const file = new File([blob], fileName, { type: 'image/png' });
+
+          // Phone-friendly: native share sheet -> "Save Image" goes to gallery
+          if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            try {
+              await navigator.share({ files: [file], title: 'Housekeeping' });
+            } catch (e) { /* user cancelled the share sheet */ }
+          } else {
+            // fallback: normal download
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.download = fileName;
+            link.href = url;
+            link.click();
+            URL.revokeObjectURL(url);
+          }
+        }, 'image/png');
+      } catch (err) {
+        alert('Could not save image: ' + err.message);
+      } finally {
+        document.body.removeChild(wrap);
+        btn.textContent = label;
+        btn.disabled = false;
+      }
     }
 
     // pick the active view
@@ -591,10 +669,13 @@
       document.getElementById('viewToggleBtn').addEventListener('click', function () {
         view = view === 'cards' ? 'table' : 'cards';
         this.textContent = view === 'cards' ? '▦ Table view' : '▤ Card view';
+        document.getElementById('saveImgBtn').style.display = view === 'table' ? '' : 'none';
         draw();
         syncHeaderHeight();
         window.scrollTo(0, 0);
       });
+
+      document.getElementById('saveImgBtn').addEventListener('click', saveTableImage);
 
       syncHeaderHeight();
       window.addEventListener('resize', syncHeaderHeight);
