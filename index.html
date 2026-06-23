@@ -639,6 +639,26 @@
     }
     .log-main { font-weight: 500; }
     .log-time { color: var(--muted); font-size: 12px; white-space: nowrap; }
+
+    /* activity colour coding */
+    .log-item { border-left: 4px solid var(--line); }
+    .log-item.log-create { border-left-color: #16a34a; background: #f0fdf4; }  /* green  = created */
+    .log-item.log-delete { border-left-color: #ef4444; background: #fef2f2; }  /* red    = deleted */
+    .log-item.log-reset  { border-left-color: #f59e0b; background: #fffbeb; }  /* orange = PIN reset */
+    .log-item.log-policy { border-left-color: #3b82f6; background: #eff6ff; }  /* blue   = window change */
+    .log-item.log-login  { border-left-color: #94a3b8; background: #f8fafc; }  /* grey   = login */
+
+    .more-btn {
+      margin-top: 8px;
+      padding: 8px 14px;
+      border: none;
+      border-radius: 8px;
+      background: #e5e7eb;
+      color: var(--ink);
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+    }
   </style>
 </head>
 
@@ -728,6 +748,10 @@
         <div class="admin-card">
           <h3>Staff accounts</h3>
           <div id="usersList" class="users-list"></div>
+          <div id="staffProgress" class="progress" style="display:none">
+            <div class="progress-track"><div id="staffProgressFill" class="progress-fill"></div></div>
+            <div id="staffProgressLabel" class="progress-label">0%</div>
+          </div>
         </div>
         <div class="admin-card">
           <h3>Change my PIN</h3>
@@ -782,10 +806,12 @@
         <div class="admin-card">
           <h3>Recent logins</h3>
           <div id="accessList" class="log-list"></div>
+          <button id="accessMoreBtn" class="more-btn" type="button" style="display:none">Show more</button>
         </div>
         <div class="admin-card">
           <h3>Recent changes</h3>
           <div id="changeList" class="log-list"></div>
+          <button id="changeMoreBtn" class="more-btn" type="button" style="display:none">Show more</button>
         </div>
       </section>
     </div>
@@ -1334,25 +1360,11 @@
         b.addEventListener('click', () => deleteUser(b.dataset.id, b.dataset.name)));
     }
 
-    async function addUser() {
-      const msg = document.getElementById('userMsg'); msg.textContent = ''; msg.className = 'admin-msg';
-      const payload = {
-        full_name: document.getElementById('nuName').value.trim(),
-        username: document.getElementById('nuUser').value.trim(),
-        role: document.getElementById('nuRole').value,
-        pin: document.getElementById('nuPin').value.trim(),
-      };
-      // quick client-side check so we don't run the animation for an obvious miss
-      if (!payload.full_name || !payload.username || !payload.pin) {
-        msg.textContent = 'Name, username and PIN are required'; msg.className = 'admin-msg err'; return;
-      }
-
-      const btn = document.getElementById('addUserBtn');
-      const prog = document.getElementById('userProgress');
-      const fill = document.getElementById('userProgressFill');
-      const label = document.getElementById('userProgressLabel');
-
-      btn.disabled = true;
+    // Reusable animated progress bar. Returns { done(text), fail() }.
+    function startProgress(progId, fillId, labelId) {
+      const prog = document.getElementById(progId);
+      const fill = document.getElementById(fillId);
+      const label = document.getElementById(labelId);
       prog.style.display = 'block';
       label.classList.remove('done');
       let pct = 0;
@@ -1364,7 +1376,33 @@
         fill.style.width = pct + '%';
         label.textContent = Math.round(pct) + '%';
       }, 150);
+      return {
+        done(text) {
+          clearInterval(timer);
+          fill.style.width = '100%';
+          label.textContent = text;
+          label.classList.add('done');
+          setTimeout(() => { prog.style.display = 'none'; fill.style.width = '0%'; }, 2500);
+        },
+        fail() { clearInterval(timer); prog.style.display = 'none'; },
+      };
+    }
 
+    async function addUser() {
+      const msg = document.getElementById('userMsg'); msg.textContent = ''; msg.className = 'admin-msg';
+      const payload = {
+        full_name: document.getElementById('nuName').value.trim(),
+        username: document.getElementById('nuUser').value.trim(),
+        role: document.getElementById('nuRole').value,
+        pin: document.getElementById('nuPin').value.trim(),
+      };
+      if (!payload.full_name || !payload.username || !payload.pin) {
+        msg.textContent = 'Name, username and PIN are required'; msg.className = 'admin-msg err'; return;
+      }
+
+      const btn = document.getElementById('addUserBtn');
+      btn.disabled = true;
+      const p = startProgress('userProgress', 'userProgressFill', 'userProgressLabel');
       try {
         const resp = await fetch(FN + '/users', {
           method: 'POST',
@@ -1372,27 +1410,14 @@
           body: JSON.stringify(payload),
         });
         const data = await resp.json();
-        clearInterval(timer);
-
-        if (!resp.ok) {
-          prog.style.display = 'none';
-          msg.textContent = data.error || 'Failed'; msg.className = 'admin-msg err';
-          return;
-        }
-
-        // complete the bar
-        fill.style.width = '100%';
-        label.textContent = `@${payload.username} created ✓`;
-        label.classList.add('done');
+        if (!resp.ok) { p.fail(); msg.textContent = data.error || 'Failed'; msg.className = 'admin-msg err'; return; }
+        p.done(`@${payload.username} created ✓`);
         document.getElementById('nuName').value = '';
         document.getElementById('nuUser').value = '';
         document.getElementById('nuPin').value = '';
         loadUsers();
-        setTimeout(() => { prog.style.display = 'none'; fill.style.width = '0%'; }, 2500);
       } catch (err) {
-        clearInterval(timer);
-        prog.style.display = 'none';
-        msg.textContent = 'Network error: ' + err.message; msg.className = 'admin-msg err';
+        p.fail(); msg.textContent = 'Network error: ' + err.message; msg.className = 'admin-msg err';
       } finally {
         btn.disabled = false;
       }
@@ -1402,6 +1427,7 @@
       const pin = prompt(`New PIN for @${username} (4–6 digits):`);
       if (pin === null) return;
       if (!/^\d{4,6}$/.test(pin.trim())) { alert('PIN must be 4 to 6 digits'); return; }
+      const p = startProgress('staffProgress', 'staffProgressFill', 'staffProgressLabel');
       try {
         const resp = await fetch(FN + '/password', {
           method: 'POST',
@@ -1409,20 +1435,23 @@
           body: JSON.stringify({ target_user_id: userId, new_pin: pin.trim() }),
         });
         const data = await resp.json();
-        alert(resp.ok ? 'PIN reset.' : (data.error || 'Failed'));
-      } catch (err) { alert('Network error'); }
+        if (!resp.ok) { p.fail(); alert(data.error || 'Failed'); return; }
+        p.done(`PIN reset for @${username} ✓`);
+      } catch (err) { p.fail(); alert('Network error'); }
     }
 
     async function deleteUser(userId, username) {
       if (!confirm(`Delete @${username}? This cannot be undone.`)) return;
+      const p = startProgress('staffProgress', 'staffProgressFill', 'staffProgressLabel');
       try {
         const resp = await fetch(FN + '/users?user_id=' + encodeURIComponent(userId), {
           method: 'DELETE', headers: authHeaders(),
         });
         const data = await resp.json();
-        if (!resp.ok) { alert(data.error || 'Failed'); return; }
+        if (!resp.ok) { p.fail(); alert(data.error || 'Failed'); return; }
         loadUsers();
-      } catch (err) { alert('Network error'); }
+        p.done(`@${username} deleted ✓`);
+      } catch (err) { p.fail(); alert('Network error'); }
     }
 
     async function changeMyPin() {
@@ -1466,37 +1495,57 @@
       }
     }
 
-    function renderAccess(rows) {
+    // log data + how many rows are currently shown (paged 10 at a time)
+    let logAccess = [], logChanges = [], accessShown = 10, changesShown = 10;
+    const PAGE = 10;
+
+    function changeClass(type) {
+      return type === 'user_create' ? 'log-create'
+        : type === 'user_delete' ? 'log-delete'
+        : type === 'password_change' ? 'log-reset'
+        : type === 'policy_update' ? 'log-policy' : '';
+    }
+
+    function renderAccess() {
       const el = document.getElementById('accessList');
-      if (!rows.length) { el.innerHTML = '<p class="admin-note">No logins yet.</p>'; return; }
-      el.innerHTML = rows.map(r => {
+      const moreBtn = document.getElementById('accessMoreBtn');
+      if (!logAccess.length) { el.innerHTML = '<p class="admin-note">No logins yet.</p>'; moreBtn.style.display = 'none'; return; }
+      el.innerHTML = logAccess.slice(0, accessShown).map(r => {
         const act = r.action === 'login' ? 'logged in' : escapeHtml(r.action);
-        return `<div class="log-item">
+        return `<div class="log-item log-login">
           <span class="log-main">@${escapeHtml(r.username || '?')}<span class="role-pill">${roleLabel(r.role)}</span> ${act}</span>
           <span class="log-time">${escapeHtml(fmtTime(r.at))}</span>
         </div>`;
       }).join('');
+      moreBtn.style.display = accessShown < logAccess.length ? '' : 'none';
     }
 
-    function renderChanges(rows) {
+    function renderChanges() {
       const el = document.getElementById('changeList');
-      if (!rows.length) { el.innerHTML = '<p class="admin-note">No changes yet.</p>'; return; }
-      el.innerHTML = rows.map(c => `<div class="log-item">
+      const moreBtn = document.getElementById('changeMoreBtn');
+      if (!logChanges.length) { el.innerHTML = '<p class="admin-note">No changes yet.</p>'; moreBtn.style.display = 'none'; return; }
+      el.innerHTML = logChanges.slice(0, changesShown).map(c => `<div class="log-item ${changeClass(c.change_type)}">
           <span class="log-main">${escapeHtml(describeChange(c))} <span class="u-sub">— by @${escapeHtml(c.changed_by || '?')}</span></span>
           <span class="log-time">${escapeHtml(fmtTime(c.changed_at))}</span>
         </div>`).join('');
+      moreBtn.style.display = changesShown < logChanges.length ? '' : 'none';
     }
 
     async function loadLogs() {
       const a = document.getElementById('accessList');
       const c = document.getElementById('changeList');
       a.innerHTML = '<p class="admin-note">Loading…</p>'; c.innerHTML = '';
+      document.getElementById('accessMoreBtn').style.display = 'none';
+      document.getElementById('changeMoreBtn').style.display = 'none';
       try {
         const resp = await fetch(FN + '/logs', { headers: authHeaders() });
         const data = await resp.json();
         if (!resp.ok) { a.innerHTML = `<p class="admin-msg err">${escapeHtml(data.error || 'Could not load')}</p>`; return; }
-        renderAccess(data.access || []);
-        renderChanges(data.changes || []);
+        logAccess = data.access || [];
+        logChanges = data.changes || [];
+        accessShown = PAGE; changesShown = PAGE;
+        renderAccess();
+        renderChanges();
       } catch (err) { a.innerHTML = '<p class="admin-msg err">Network error</p>'; }
     }
 
@@ -1532,6 +1581,8 @@
       document.getElementById('savePolicyBtn').addEventListener('click', savePolicy);
       document.getElementById('addUserBtn').addEventListener('click', addUser);
       document.getElementById('changePinBtn').addEventListener('click', changeMyPin);
+      document.getElementById('accessMoreBtn').addEventListener('click', () => { accessShown += PAGE; renderAccess(); });
+      document.getElementById('changeMoreBtn').addEventListener('click', () => { changesShown += PAGE; renderChanges(); });
 
       window.addEventListener('resize', syncHeaderHeight);
 
