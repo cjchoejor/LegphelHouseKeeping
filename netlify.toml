@@ -5,6 +5,10 @@
   publish = "."
   functions = "netlify/functions"
 
+[functions]
+  # Bundle npm deps (neon, jwt, bcryptjs) into each function.
+  node_bundler = "esbuild"
+
 # Optional friendlier URL: /api/reservations -> the function
 [[redirects]]
   from = "/api/reservations"
