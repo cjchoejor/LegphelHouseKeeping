@@ -2,8 +2,10 @@
 -- Safe to re-run: uses IF NOT EXISTS / ON CONFLICT.
 
 -- Show timestamps in Bhutan time (stored as UTC, displayed as Asia/Thimphu).
--- Run once; takes effect on new connections.
+-- Takes effect on NEW connections (the Neon SQL editor may still report GMT for its
+-- own session — that's only the editor, the app formats to Thimphu regardless).
 ALTER DATABASE neondb SET timezone TO 'Asia/Thimphu';
+ALTER ROLE neondb_owner IN DATABASE neondb SET timezone TO 'Asia/Thimphu';
 
 -- A person who works at the hotel and may use the app.
 CREATE TABLE IF NOT EXISTS staff_info (

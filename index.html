@@ -500,6 +500,100 @@
     .admin-msg { font-size: 13px; min-height: 18px; }
     .admin-msg.ok { color: #15803d; }
     .admin-msg.err { color: #c0392b; }
+
+    /* ---- Admin Console (full page) ---- */
+    .admin-page {
+      position: fixed;
+      inset: 0;
+      z-index: 150;
+      background: var(--bg);
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .admin-header {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: var(--blue);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    }
+    .admin-header h2 { margin: 0; font-size: 18px; font-weight: 600; }
+    #adminBackBtn {
+      background: rgba(255, 255, 255, 0.2);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .admin-body { max-width: 640px; margin: 0 auto; padding: 16px 14px 40px; }
+    .admin-card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 14px;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+    }
+    .admin-card h3 { margin: 0 0 4px; font-size: 16px; color: var(--ink); }
+    .admin-card h4 { margin: 18px 0 8px; font-size: 14px; color: var(--ink); }
+    .admin-card select {
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      font-size: 16px;
+    }
+    .row-actions { display: flex; gap: 8px; margin-top: 8px; }
+    .row-actions button {
+      padding: 11px 18px;
+      border: none;
+      border-radius: 8px;
+      background: var(--blue);
+      color: #fff;
+      font-weight: 600;
+      font-size: 15px;
+      cursor: pointer;
+    }
+    .users-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 4px; }
+    .user-row {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .user-row .u-name { font-weight: 600; }
+    .user-row .u-sub { font-size: 12px; color: var(--muted); }
+    .user-row .u-actions { display: flex; gap: 6px; }
+    .user-row .u-actions button {
+      border: none;
+      border-radius: 6px;
+      padding: 7px 11px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      color: #fff;
+    }
+    .btn-reset { background: #f59e0b; }
+    .btn-del { background: #ef4444; }
+    .role-pill {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 20px;
+      background: #e0e7ff;
+      color: #3730a3;
+      margin-left: 6px;
+    }
   </style>
 </head>
 
@@ -553,23 +647,74 @@
     <div id="content" class="status">Loading…</div>
   </main>
 
-  <div id="adminModal" class="modal" style="display:none">
-    <div class="modal-box">
-      <h3 style="margin:0">⚙ Admin Console</h3>
-      <p class="modal-hint" style="text-align:left">How many days around today housekeeping is allowed to view:</p>
-      <div class="admin-field">
-        <label for="daysBefore">Days before today</label>
-        <input type="number" id="daysBefore" min="0" max="60" inputmode="numeric">
-      </div>
-      <div class="admin-field">
-        <label for="daysAfter">Days after today</label>
-        <input type="number" id="daysAfter" min="0" max="60" inputmode="numeric">
-      </div>
-      <div id="adminMsg" class="admin-msg"></div>
-      <div class="modal-actions">
-        <button id="savePolicyBtn">Save</button>
-        <button id="closeAdminBtn" class="ghost">Close</button>
-      </div>
+  <div id="adminPage" class="admin-page" style="display:none">
+    <div class="admin-header">
+      <button id="adminBackBtn" type="button">← Back</button>
+      <h2>Admin Console</h2>
+    </div>
+    <div class="admin-body">
+
+      <!-- Date window -->
+      <section class="admin-card">
+        <h3>Housekeeping date window</h3>
+        <p class="admin-note">How many days around today housekeeping is allowed to view.</p>
+        <div class="admin-field">
+          <label for="daysBefore">Days before today</label>
+          <input type="number" id="daysBefore" min="0" max="60" inputmode="numeric">
+        </div>
+        <div class="admin-field">
+          <label for="daysAfter">Days after today</label>
+          <input type="number" id="daysAfter" min="0" max="60" inputmode="numeric">
+        </div>
+        <div class="row-actions"><button id="savePolicyBtn" type="button">Save window</button></div>
+        <div id="adminMsg" class="admin-msg"></div>
+      </section>
+
+      <!-- Manage staff accounts (admin only) -->
+      <section class="admin-card" id="usersSection">
+        <h3>Staff accounts</h3>
+        <div id="usersList" class="users-list"></div>
+
+        <h4>Add a new user</h4>
+        <div class="admin-field">
+          <label for="nuName">Full name</label>
+          <input type="text" id="nuName">
+        </div>
+        <div class="admin-field">
+          <label for="nuUser">Username</label>
+          <input type="text" id="nuUser" autocapitalize="off" autocorrect="off" spellcheck="false">
+        </div>
+        <div class="admin-field">
+          <label for="nuRole">Role</label>
+          <select id="nuRole">
+            <option value="housekeeping">Housekeeping</option>
+            <option value="gm">General Manager</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <div class="admin-field">
+          <label for="nuPin">PIN (4–6 digits)</label>
+          <input type="text" id="nuPin" inputmode="numeric" maxlength="6">
+        </div>
+        <div class="row-actions"><button id="addUserBtn" type="button">Create user</button></div>
+        <div id="userMsg" class="admin-msg"></div>
+      </section>
+
+      <!-- Change own PIN -->
+      <section class="admin-card">
+        <h3>Change my PIN</h3>
+        <div class="admin-field">
+          <label for="myOldPin">Current PIN</label>
+          <input type="password" id="myOldPin" inputmode="numeric">
+        </div>
+        <div class="admin-field">
+          <label for="myNewPin">New PIN</label>
+          <input type="password" id="myNewPin" inputmode="numeric">
+        </div>
+        <div class="row-actions"><button id="changePinBtn" type="button">Update PIN</button></div>
+        <div id="pinMsg" class="admin-msg"></div>
+      </section>
+
     </div>
   </div>
 
@@ -947,7 +1092,7 @@
 
     function logout() {
       clearAuth(); auth = null; lastData = null;
-      document.getElementById('adminModal').style.display = 'none';
+      document.getElementById('adminPage').style.display = 'none';
       document.getElementById('imgModal').style.display = 'none';
       showLogin();
     }
@@ -989,44 +1134,160 @@
       document.getElementById('endDate').value = fmt(tomorrow);
     }
 
-    // ---- admin console ----
-    async function openAdmin() {
-      const msg = document.getElementById('adminMsg');
-      msg.textContent = ''; msg.className = 'admin-msg';
+    // ---- admin console (full page) ----
+    function authHeaders(extra) {
+      return Object.assign({ Authorization: 'Bearer ' + auth.token }, extra || {});
+    }
+
+    function openAdmin() {
       const isAdmin = auth && auth.user && auth.user.role === 'admin';
-      document.getElementById('savePolicyBtn').style.display = isAdmin ? '' : 'none';
+      // date-window section: admin can edit, GM can only view
       document.getElementById('daysBefore').disabled = !isAdmin;
       document.getElementById('daysAfter').disabled = !isAdmin;
-      document.getElementById('adminModal').style.display = 'flex';
+      document.getElementById('savePolicyBtn').style.display = isAdmin ? '' : 'none';
+      // staff management is admin-only
+      document.getElementById('usersSection').style.display = isAdmin ? '' : 'none';
+
+      document.getElementById('adminPage').style.display = 'block';
+      window.scrollTo(0, 0);
+      loadPolicy();
+      if (isAdmin) loadUsers();
+    }
+
+    function closeAdmin() { document.getElementById('adminPage').style.display = 'none'; }
+
+    async function loadPolicy() {
+      const msg = document.getElementById('adminMsg'); msg.textContent = ''; msg.className = 'admin-msg';
       try {
-        const resp = await fetch(FN + '/policy', { headers: { Authorization: 'Bearer ' + auth.token } });
+        const resp = await fetch(FN + '/policy', { headers: authHeaders() });
         const data = await resp.json();
         if (!resp.ok) { msg.textContent = data.error || 'Could not load'; msg.className = 'admin-msg err'; return; }
         document.getElementById('daysBefore').value = data.days_before;
         document.getElementById('daysAfter').value = data.days_after;
-      } catch (err) {
-        msg.textContent = 'Network error: ' + err.message; msg.className = 'admin-msg err';
-      }
+      } catch (err) { msg.textContent = 'Network error: ' + err.message; msg.className = 'admin-msg err'; }
     }
 
     async function savePolicy() {
-      const msg = document.getElementById('adminMsg');
-      msg.textContent = 'Saving…'; msg.className = 'admin-msg';
-      const days_before = document.getElementById('daysBefore').value;
-      const days_after = document.getElementById('daysAfter').value;
+      const msg = document.getElementById('adminMsg'); msg.textContent = 'Saving…'; msg.className = 'admin-msg';
       try {
         const resp = await fetch(FN + '/policy', {
           method: 'POST',
-          headers: { 'content-type': 'application/json', Authorization: 'Bearer ' + auth.token },
-          body: JSON.stringify({ days_before, days_after }),
+          headers: authHeaders({ 'content-type': 'application/json' }),
+          body: JSON.stringify({
+            days_before: document.getElementById('daysBefore').value,
+            days_after: document.getElementById('daysAfter').value,
+          }),
         });
         const data = await resp.json();
         if (!resp.ok) { msg.textContent = data.error || 'Save failed'; msg.className = 'admin-msg err'; return; }
         msg.textContent = 'Saved.'; msg.className = 'admin-msg ok';
         if (auth.policy) { auth.policy.days_before = data.days_before; auth.policy.days_after = data.days_after; saveAuth(auth); }
-      } catch (err) {
-        msg.textContent = 'Network error: ' + err.message; msg.className = 'admin-msg err';
-      }
+      } catch (err) { msg.textContent = 'Network error: ' + err.message; msg.className = 'admin-msg err'; }
+    }
+
+    async function loadUsers() {
+      const list = document.getElementById('usersList');
+      list.innerHTML = '<p class="admin-note">Loading…</p>';
+      try {
+        const resp = await fetch(FN + '/users', { headers: authHeaders() });
+        const data = await resp.json();
+        if (!resp.ok) { list.innerHTML = `<p class="admin-msg err">${escapeHtml(data.error || 'Could not load')}</p>`; return; }
+        renderUsers(data);
+      } catch (err) { list.innerHTML = '<p class="admin-msg err">Network error</p>'; }
+    }
+
+    function renderUsers(users) {
+      const list = document.getElementById('usersList');
+      if (!users.length) { list.innerHTML = '<p class="admin-note">No users yet.</p>'; return; }
+      list.innerHTML = users.map(u => {
+        const last = u.last_login
+          ? new Date(u.last_login).toLocaleString('en-GB', { timeZone: 'Asia/Thimphu' })
+          : 'never';
+        return `<div class="user-row">
+          <div class="u-main">
+            <span class="u-name">${escapeHtml(u.full_name)}<span class="role-pill">${roleLabel(u.role)}</span></span>
+            <div class="u-sub">@${escapeHtml(u.username)} · last login: ${escapeHtml(last)}</div>
+          </div>
+          <div class="u-actions">
+            <button class="btn-reset" data-id="${u.user_id}" data-name="${escapeHtml(u.username)}">Reset PIN</button>
+            <button class="btn-del" data-id="${u.user_id}" data-name="${escapeHtml(u.username)}">Delete</button>
+          </div>
+        </div>`;
+      }).join('');
+      list.querySelectorAll('.btn-reset').forEach(b =>
+        b.addEventListener('click', () => resetPin(b.dataset.id, b.dataset.name)));
+      list.querySelectorAll('.btn-del').forEach(b =>
+        b.addEventListener('click', () => deleteUser(b.dataset.id, b.dataset.name)));
+    }
+
+    async function addUser() {
+      const msg = document.getElementById('userMsg'); msg.textContent = 'Creating…'; msg.className = 'admin-msg';
+      const payload = {
+        full_name: document.getElementById('nuName').value.trim(),
+        username: document.getElementById('nuUser').value.trim(),
+        role: document.getElementById('nuRole').value,
+        pin: document.getElementById('nuPin').value.trim(),
+      };
+      try {
+        const resp = await fetch(FN + '/users', {
+          method: 'POST',
+          headers: authHeaders({ 'content-type': 'application/json' }),
+          body: JSON.stringify(payload),
+        });
+        const data = await resp.json();
+        if (!resp.ok) { msg.textContent = data.error || 'Failed'; msg.className = 'admin-msg err'; return; }
+        msg.textContent = 'User created.'; msg.className = 'admin-msg ok';
+        document.getElementById('nuName').value = '';
+        document.getElementById('nuUser').value = '';
+        document.getElementById('nuPin').value = '';
+        loadUsers();
+      } catch (err) { msg.textContent = 'Network error: ' + err.message; msg.className = 'admin-msg err'; }
+    }
+
+    async function resetPin(userId, username) {
+      const pin = prompt(`New PIN for @${username} (4–6 digits):`);
+      if (pin === null) return;
+      if (!/^\d{4,6}$/.test(pin.trim())) { alert('PIN must be 4 to 6 digits'); return; }
+      try {
+        const resp = await fetch(FN + '/password', {
+          method: 'POST',
+          headers: authHeaders({ 'content-type': 'application/json' }),
+          body: JSON.stringify({ target_user_id: userId, new_pin: pin.trim() }),
+        });
+        const data = await resp.json();
+        alert(resp.ok ? 'PIN reset.' : (data.error || 'Failed'));
+      } catch (err) { alert('Network error'); }
+    }
+
+    async function deleteUser(userId, username) {
+      if (!confirm(`Delete @${username}? This cannot be undone.`)) return;
+      try {
+        const resp = await fetch(FN + '/users?user_id=' + encodeURIComponent(userId), {
+          method: 'DELETE', headers: authHeaders(),
+        });
+        const data = await resp.json();
+        if (!resp.ok) { alert(data.error || 'Failed'); return; }
+        loadUsers();
+      } catch (err) { alert('Network error'); }
+    }
+
+    async function changeMyPin() {
+      const msg = document.getElementById('pinMsg'); msg.textContent = 'Updating…'; msg.className = 'admin-msg';
+      try {
+        const resp = await fetch(FN + '/password', {
+          method: 'POST',
+          headers: authHeaders({ 'content-type': 'application/json' }),
+          body: JSON.stringify({
+            old_pin: document.getElementById('myOldPin').value,
+            new_pin: document.getElementById('myNewPin').value.trim(),
+          }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) { msg.textContent = data.error || 'Failed'; msg.className = 'admin-msg err'; return; }
+        msg.textContent = 'PIN updated.'; msg.className = 'admin-msg ok';
+        document.getElementById('myOldPin').value = '';
+        document.getElementById('myNewPin').value = '';
+      } catch (err) { msg.textContent = 'Network error: ' + err.message; msg.className = 'admin-msg err'; }
     }
 
     // ---- wire up static listeners once ----
@@ -1055,10 +1316,10 @@
       document.getElementById('loginForm').addEventListener('submit', handleLogin);
       document.getElementById('logoutBtn').addEventListener('click', logout);
       document.getElementById('adminBtn').addEventListener('click', openAdmin);
+      document.getElementById('adminBackBtn').addEventListener('click', closeAdmin);
       document.getElementById('savePolicyBtn').addEventListener('click', savePolicy);
-      document.getElementById('closeAdminBtn').addEventListener('click', function () {
-        document.getElementById('adminModal').style.display = 'none';
-      });
+      document.getElementById('addUserBtn').addEventListener('click', addUser);
+      document.getElementById('changePinBtn').addEventListener('click', changeMyPin);
 
       window.addEventListener('resize', syncHeaderHeight);
     }
