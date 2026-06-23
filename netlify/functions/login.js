@@ -16,11 +16,14 @@ exports.handler = async (event) => {
   const LOCK_MINUTES = 15;
 
   try {
+    // 1 round-trip: fetch the user, their role, AND the policy together.
     const rows = await sql`
       SELECT u.user_id, u.username, u.password_hash, u.failed_attempts, u.locked_until,
-             s.full_name, s.role, s.is_active
+             s.full_name, s.role, s.is_active,
+             p.days_before, p.days_after
       FROM users u
       JOIN staff_info s ON s.staff_id = u.staff_id
+      LEFT JOIN policy_for_date_range p ON p.id = 1
       WHERE u.username = ${username}`;
 
     const u = rows[0];
@@ -48,9 +51,6 @@ exports.handler = async (event) => {
       return json(401, { error: `Wrong username or password (${MAX_TRIES - tries} tries left)` });
     }
 
-    // success — clear any failed-attempt state
-    await sql`UPDATE users SET failed_attempts = 0, locked_until = NULL WHERE user_id = ${u.user_id}`;
-
     const token = signToken({
       user_id: u.user_id,
       username: u.username,
@@ -58,25 +58,27 @@ exports.handler = async (event) => {
       role: u.role,
     });
 
-    // record the login (best-effort; never block login on a logging failure)
+    // 1 round-trip: reset attempts + stamp last_login + write the access log in a single statement.
     const { ip, user_agent } = clientInfo(event);
     try {
-      await sql`UPDATE users SET last_login = now() WHERE user_id = ${u.user_id}`;
       await sql`
+        WITH upd AS (
+          UPDATE users
+          SET failed_attempts = 0, locked_until = NULL, last_login = now()
+          WHERE user_id = ${u.user_id}
+          RETURNING user_id
+        )
         INSERT INTO access_log (user_id, username, role, action, ip, user_agent)
         VALUES (${u.user_id}, ${u.username}, ${u.role}, 'login', ${ip}, ${user_agent})`;
-    } catch (_) { /* ignore logging errors */ }
-
-    let policy = { days_before: 1, days_after: 1 };
-    try {
-      const pr = await sql`SELECT days_before, days_after FROM policy_for_date_range WHERE id = 1`;
-      if (pr[0]) policy = pr[0];
-    } catch (_) { /* use defaults */ }
+    } catch (_) { /* logging is best-effort */ }
 
     return json(200, {
       token,
       user: { username: u.username, full_name: u.full_name, role: u.role },
-      policy,
+      policy: {
+        days_before: u.days_before != null ? u.days_before : 1,
+        days_after: u.days_after != null ? u.days_after : 1,
+      },
     });
   } catch (err) {
     return json(500, { error: 'Login failed: ' + err.message });
