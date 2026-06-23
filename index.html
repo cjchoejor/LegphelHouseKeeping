@@ -465,28 +465,54 @@
     }
     #loginBtn:disabled { opacity: 0.6; }
 
-    /* ---- User bar (top of header) ---- */
-    .userbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      margin-bottom: 10px;
-      font-size: 13px;
-    }
-    .userbar #userLabel { font-weight: 600; opacity: 0.95; }
-    .userbar-actions { display: flex; gap: 6px; }
-    .userbar-actions button {
-      border: none;
-      border-radius: 6px;
-      padding: 6px 10px;
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
+    /* ---- Account menu (top-right of the title row) ---- */
+    .menu-wrap { margin-left: auto; position: relative; flex: 0 0 auto; }
+    .menu-btn {
       background: rgba(255, 255, 255, 0.2);
       color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 11px;
+      font-size: 17px;
+      line-height: 1;
+      cursor: pointer;
     }
-    .userbar-actions button:active { transform: scale(0.97); }
+    .menu-dropdown {
+      position: absolute;
+      right: 0;
+      top: calc(100% + 6px);
+      background: #fff;
+      color: var(--ink);
+      border-radius: 10px;
+      box-shadow: 0 6px 24px rgba(0, 0, 0, 0.2);
+      min-width: 190px;
+      padding: 8px;
+      z-index: 30;
+      display: none;
+    }
+    .menu-dropdown.open { display: block; }
+    .menu-dropdown .menu-user {
+      font-size: 13px;
+      font-weight: 700;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--line);
+      margin-bottom: 6px;
+    }
+    .menu-dropdown button {
+      display: block;
+      width: 100%;
+      text-align: left;
+      background: none;
+      border: none;
+      padding: 10px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--ink);
+      cursor: pointer;
+    }
+    .menu-dropdown button:active { background: #f1f3f6; }
+    .menu-dropdown button.danger { color: #c0392b; }
 
     /* ---- Admin console fields ---- */
     .admin-field { display: flex; flex-direction: column; gap: 4px; }
@@ -677,18 +703,19 @@
   </div>
 
   <header>
-    <div class="userbar">
-      <span id="userLabel"></span>
-      <span class="userbar-actions">
-        <button id="adminBtn" type="button" style="display:none">⚙ Admin</button>
-        <button id="logoutBtn" type="button">Logout</button>
-      </span>
-    </div>
     <div class="brand">
       <img src="legphel-logo.png" alt="Legphel logo" class="logo">
       <div class="brand-text">
         <h1>Legphel Housekeeping</h1>
         <div class="sub" id="rangeLabel">&nbsp;</div>
+      </div>
+      <div class="menu-wrap">
+        <button id="menuBtn" class="menu-btn" type="button" aria-label="Menu">☰</button>
+        <div id="menuDropdown" class="menu-dropdown">
+          <div class="menu-user" id="userLabel"></div>
+          <button id="adminBtn" type="button" style="display:none">⚙ Admin Console</button>
+          <button id="logoutBtn" class="danger" type="button">Logout</button>
+        </div>
       </div>
     </div>
     <div class="controls">
@@ -1217,6 +1244,7 @@
     }
 
     function logout() {
+      closeMenu();
       clearAuth(); auth = null; lastData = null;
       clearTimeout(idleTimer);
       document.getElementById('adminPage').style.display = 'none';
@@ -1275,6 +1303,7 @@
     }
 
     function openAdmin() {
+      closeMenu();
       const isAdmin = auth && auth.user && auth.user.role === 'admin';
       const canManage = isAdmin || (auth.user.role === 'gm');
       // date-window: admin + gm can edit
@@ -1299,6 +1328,8 @@
     }
 
     function closeAdmin() { document.getElementById('adminPage').style.display = 'none'; }
+
+    function closeMenu() { document.getElementById('menuDropdown').classList.remove('open'); }
 
     async function loadPolicy() {
       const msg = document.getElementById('adminMsg'); msg.textContent = ''; msg.className = 'admin-msg';
@@ -1589,6 +1620,18 @@
       });
 
       document.getElementById('loginForm').addEventListener('submit', handleLogin);
+      const menuBtn = document.getElementById('menuBtn');
+      const menuDropdown = document.getElementById('menuDropdown');
+      menuBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        menuDropdown.classList.toggle('open');
+      });
+      document.addEventListener('click', function (e) {
+        if (menuDropdown.classList.contains('open') &&
+            !menuDropdown.contains(e.target) && e.target !== menuBtn) {
+          menuDropdown.classList.remove('open');
+        }
+      });
       document.getElementById('logoutBtn').addEventListener('click', logout);
       document.getElementById('adminBtn').addEventListener('click', openAdmin);
       document.getElementById('adminBackBtn').addEventListener('click', closeAdmin);
