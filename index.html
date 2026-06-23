@@ -807,11 +807,13 @@
           <h3>Recent logins</h3>
           <div id="accessList" class="log-list"></div>
           <button id="accessMoreBtn" class="more-btn" type="button" style="display:none">Show more</button>
+          <button id="accessLessBtn" class="more-btn" type="button" style="display:none;margin-left:6px">Show less</button>
         </div>
         <div class="admin-card">
           <h3>Recent changes</h3>
           <div id="changeList" class="log-list"></div>
           <button id="changeMoreBtn" class="more-btn" type="button" style="display:none">Show more</button>
+          <button id="changeLessBtn" class="more-btn" type="button" style="display:none;margin-left:6px">Show less</button>
         </div>
       </section>
     </div>
@@ -1180,6 +1182,8 @@
       document.getElementById('loginScreen').style.display = 'flex';
       document.getElementById('loginPin').value = '';
       document.getElementById('loginUser').focus();
+      // wake the sleeping DB in the background while the user types their PIN
+      if (!DEV) fetch(FN + '/warmup').catch(() => {});
     }
     function hideLogin() {
       document.getElementById('loginScreen').style.display = 'none';
@@ -1518,6 +1522,7 @@
         </div>`;
       }).join('');
       moreBtn.style.display = accessShown < logAccess.length ? '' : 'none';
+      document.getElementById('accessLessBtn').style.display = accessShown > PAGE ? '' : 'none';
     }
 
     function renderChanges() {
@@ -1529,6 +1534,7 @@
           <span class="log-time">${escapeHtml(fmtTime(c.changed_at))}</span>
         </div>`).join('');
       moreBtn.style.display = changesShown < logChanges.length ? '' : 'none';
+      document.getElementById('changeLessBtn').style.display = changesShown > PAGE ? '' : 'none';
     }
 
     async function loadLogs() {
@@ -1537,6 +1543,8 @@
       a.innerHTML = '<p class="admin-note">Loading…</p>'; c.innerHTML = '';
       document.getElementById('accessMoreBtn').style.display = 'none';
       document.getElementById('changeMoreBtn').style.display = 'none';
+      document.getElementById('accessLessBtn').style.display = 'none';
+      document.getElementById('changeLessBtn').style.display = 'none';
       try {
         const resp = await fetch(FN + '/logs', { headers: authHeaders() });
         const data = await resp.json();
@@ -1583,6 +1591,8 @@
       document.getElementById('changePinBtn').addEventListener('click', changeMyPin);
       document.getElementById('accessMoreBtn').addEventListener('click', () => { accessShown += PAGE; renderAccess(); });
       document.getElementById('changeMoreBtn').addEventListener('click', () => { changesShown += PAGE; renderChanges(); });
+      document.getElementById('accessLessBtn').addEventListener('click', () => { accessShown = PAGE; renderAccess(); });
+      document.getElementById('changeLessBtn').addEventListener('click', () => { changesShown = PAGE; renderChanges(); });
 
       window.addEventListener('resize', syncHeaderHeight);
 
