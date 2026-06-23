@@ -4,7 +4,7 @@
 // This function runs on Netlify's SERVER, where calling http:// is fine, then hands
 // the data back to the page over https://. It also sidesteps any CORS restriction.
 
-const API = 'http://119.2.105.142:3800/api/reservations_summary_for_mam';
+const API = 'http://119.2.105.142:3800/api/reservations_summary_for_mam2';
 
 exports.handler = async (event) => {
   const { start_date, end_date } = event.queryStringParameters || {};

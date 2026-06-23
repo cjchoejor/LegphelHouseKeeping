@@ -170,6 +170,30 @@
       border-left-color: var(--warn-border);
       background: var(--warn-bg);
     }
+    .card.staying {
+      border-left-color: #14b8a6;
+      background: #f0fbf6;
+    }
+    .stay-tag {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      background: #14b8a6;
+      color: #fff;
+      padding: 2px 8px;
+      border-radius: 20px;
+      margin-left: 8px;
+      vertical-align: middle;
+    }
+    .stay-tag-sm {
+      font-size: 10px;
+      font-weight: 700;
+      background: #14b8a6;
+      color: #fff;
+      padding: 1px 6px;
+      border-radius: 20px;
+      white-space: nowrap;
+    }
 
     .card-top {
       display: flex;
@@ -324,6 +348,11 @@
     table.grid tr.alt td.sticky-col { background: #e3e8f5; }
     table.grid tr.alt td.cell-pref { background: #fbe1e1; }
 
+    /* in-stay rows (guest already checked in) — light green, overrides zebra */
+    table.grid tr.staying td { background: #e9f9f1; }
+    table.grid tr.staying td.sticky-col { background: #d3f1e2; color: #0f766e; }
+    table.grid tr.staying td.cell-pref { background: #fdeaea; }
+
     table.grid tr.blocked-row td { background: var(--warn-bg); }
     table.grid tr.blocked-row td.sticky-col { background: #fff4cc; color: #a17f00; }
     table.grid td.cell-name { text-align: left; white-space: normal; min-width: 130px; }
@@ -440,7 +469,7 @@
     const onHttps = location.protocol === 'https:';
     const apiBase = onHttps
       ? '/.netlify/functions/reservations'
-      : 'http://119.2.105.142:3800/api/reservations_summary_for_mam';
+      : 'http://119.2.105.142:3800/api/reservations_summary_for_mam2';
 
     let lastData = null;        // cache so toggling views doesn't re-fetch
     let view = 'cards';         // 'cards' | 'table'
@@ -512,12 +541,14 @@
 
         groups.forEach(g => {
           const blocked = g.reservation_status === 'blocked';
+          const staying = !blocked && g.stay_status === 'staying';
+          const stateClass = blocked ? ' blocked' : (staying ? ' staying' : '');
           const beds = bedText(g.king_bed, g.twin_bed);
           const pref = (g.special_preferences || '').trim();
 
-          html += `<div class="card${blocked ? ' blocked' : ''}">
+          html += `<div class="card${stateClass}">
             <div class="card-top">
-              <span class="room-no">Room ${escapeHtml(g.room_no)}${blocked ? '<span class="blocked-tag">BLOCKED</span>' : ''}</span>
+              <span class="room-no">Room ${escapeHtml(g.room_no)}${blocked ? '<span class="blocked-tag">BLOCKED</span>' : ''}${staying ? '<span class="stay-tag">In-stay</span>' : ''}</span>
               <span class="beds">${beds}</span>
             </div>
             <div class="cust">${escapeHtml(g.primary_customer_name ?? '—')}</div>
@@ -589,12 +620,14 @@
 
         groups.forEach(g => {
           const blocked = g.reservation_status === 'blocked';
+          const staying = !blocked && g.stay_status === 'staying';
+          const stateClass = blocked ? 'blocked-row' : (staying ? 'staying' : '');
           const beds = bedText(g.king_bed, g.twin_bed) || '—';
           const pref = (g.special_preferences || '').trim();
           const alt = (rowIdx++ % 2 === 0) ? ' alt' : '';
-          html += `<tr class="${blocked ? 'blocked-row' : ''}${alt}">
+          html += `<tr class="${stateClass}${alt}">
             <td class="sticky-col">${stackRooms(g.room_no)}${blocked ? '<br>🔒' : ''}</td>
-            <td class="cell-name">${escapeHtml(g.primary_customer_name ?? '—')}</td>
+            <td class="cell-name">${escapeHtml(g.primary_customer_name ?? '—')}${staying ? ' <span class="stay-tag-sm">in-stay</span>' : ''}</td>
             <td>${beds}</td>
             <td>${g.adults ?? 0}</td>
             <td>${g.children ?? 0}</td>
