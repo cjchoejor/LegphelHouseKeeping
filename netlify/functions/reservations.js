@@ -6,7 +6,9 @@
 // 3) Then fetches from the http-only hotel API (allowed server-side) and returns it.
 const { json, authUser, sql } = require('./_lib');
 
-const API = 'http://119.2.105.142:3800/api/reservations_summary_for_mam2';
+// Hotel API URL is kept in an env var so it never appears in the committed code.
+// Set HOTEL_API in Netlify, e.g. http://<host>:<port>/api/reservations_summary_for_mam2
+const API = process.env.HOTEL_API;
 
 function thimphuTodayISO() {
   // server runs in UTC; Bhutan is UTC+6, no DST
@@ -19,6 +21,8 @@ function addDaysISO(iso, n) {
 }
 
 exports.handler = async (event) => {
+  if (!API) return json(500, { error: 'HOTEL_API env var is not set' });
+
   const user = authUser(event);
   if (!user) return json(401, { error: 'Not logged in' });
 

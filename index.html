@@ -730,14 +730,13 @@
   </div>
 
   <script>
-    // DEV = opened as a local file (file://): skip login and call the hotel API directly,
-    // so the layout can still be previewed without a server. On the real https site,
-    // login is required and all data goes through the secured Netlify proxy.
+    // All data goes through the secured Netlify proxy — the real hotel API URL lives
+    // only inside the server-side function, never in this page. DEV = opened as a local
+    // file (file://): skip login so the layout can be previewed (live data needs the proxy,
+    // so use `netlify dev` for a full local run).
     const DEV = location.protocol === 'file:';
     const FN = '/.netlify/functions';
-    const apiBase = DEV
-      ? 'http://119.2.105.142:3800/api/reservations_summary_for_mam2'
-      : FN + '/reservations';
+    const apiBase = FN + '/reservations';
 
     let lastData = null;        // cache so toggling views doesn't re-fetch
     let view = 'cards';         // 'cards' | 'table'
@@ -760,6 +759,30 @@
       return r === 'admin' ? 'Admin' : r === 'gm' ? 'General Manager' : 'Housekeeping';
     }
     function addDays(date, n) { const d = new Date(date); d.setDate(d.getDate() + n); return d; }
+
+    // ---- idle auto-logout (30 minutes of no activity) ----
+    const IDLE_MS = 30 * 60 * 1000;
+    let idleTimer = null;
+    let lastActivity = Date.now();
+
+    function armIdle() {
+      clearTimeout(idleTimer);
+      if (!auth) return;
+      idleTimer = setTimeout(idleLogout, IDLE_MS);
+    }
+    function idleLogout() {
+      if (!auth) return;
+      logout();
+      const errEl = document.getElementById('loginError');
+      if (errEl) errEl.textContent = 'Signed out after 30 minutes of inactivity.';
+    }
+    function bumpActivity() {
+      lastActivity = Date.now();
+      // re-arm at most once every 5s to avoid timer churn
+      if (Date.now() - (bumpActivity._last || 0) < 5000) return;
+      bumpActivity._last = Date.now();
+      armIdle();
+    }
 
     // ---- date helpers (Asia/Thimphu, UTC+6) ----
     function thimphuToday() {
@@ -1092,6 +1115,7 @@
 
     function logout() {
       clearAuth(); auth = null; lastData = null;
+      clearTimeout(idleTimer);
       document.getElementById('adminPage').style.display = 'none';
       document.getElementById('imgModal').style.display = 'none';
       showLogin();
@@ -1124,6 +1148,8 @@
       applyRoleUI();
       initDates();
       syncHeaderHeight();
+      lastActivity = Date.now();
+      armIdle();
       fetchAndRender();
     }
 
@@ -1322,6 +1348,13 @@
       document.getElementById('changePinBtn').addEventListener('click', changeMyPin);
 
       window.addEventListener('resize', syncHeaderHeight);
+
+      // idle-logout: reset the timer on any activity; check again when the tab regains focus
+      ['click', 'touchstart', 'keydown', 'scroll', 'mousemove'].forEach(ev =>
+        window.addEventListener(ev, bumpActivity, { passive: true }));
+      document.addEventListener('visibilitychange', function () {
+        if (!document.hidden && auth && Date.now() - lastActivity > IDLE_MS) idleLogout();
+      });
     }
 
     function boot() {

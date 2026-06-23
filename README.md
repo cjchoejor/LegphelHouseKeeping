@@ -13,7 +13,7 @@ bed setup, occupants, and any special preferences for the day.
 
 ## Why the proxy exists
 
-The hotel API is **http** only (`http://119.2.105.142:3800`). Netlify serves every
+The hotel API is **http** only (its URL is kept in the `HOTEL_API` env var). Netlify serves every
 page over **https**, and browsers refuse to let an https page call an http address
 ("mixed content") — this is exactly why the old page failed once it was online.
 
@@ -21,8 +21,8 @@ The fix: the page calls `/.netlify/functions/reservations` (https, same domain).
 That function runs on Netlify's server, where calling http is allowed, fetches the
 data, and returns it. This also avoids any CORS problem.
 
-When you open `index.html` directly as a local file (not https), it skips the proxy
-and calls the API directly so you can test without deploying.
+Opened as a local file, the app skips login for a quick layout preview; live data needs
+the proxy, so use `netlify dev` for a full local run.
 
 ## Deploy (GitHub + Netlify, free)
 
