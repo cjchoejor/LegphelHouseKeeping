@@ -67,9 +67,16 @@ exports.handler = async (event) => {
         VALUES (${u.user_id}, ${u.username}, ${u.role}, 'login', ${ip}, ${user_agent})`;
     } catch (_) { /* ignore logging errors */ }
 
+    let policy = { days_before: 1, days_after: 1 };
+    try {
+      const pr = await sql`SELECT days_before, days_after FROM policy_for_date_range WHERE id = 1`;
+      if (pr[0]) policy = pr[0];
+    } catch (_) { /* use defaults */ }
+
     return json(200, {
       token,
       user: { username: u.username, full_name: u.full_name, role: u.role },
+      policy,
     });
   } catch (err) {
     return json(500, { error: 'Login failed: ' + err.message });

@@ -1,6 +1,10 @@
 -- Legphel Housekeeping — auth & policy schema (run once on your Neon database)
 -- Safe to re-run: uses IF NOT EXISTS / ON CONFLICT.
 
+-- Show timestamps in Bhutan time (stored as UTC, displayed as Asia/Thimphu).
+-- Run once; takes effect on new connections.
+ALTER DATABASE neondb SET timezone TO 'Asia/Thimphu';
+
 -- A person who works at the hotel and may use the app.
 CREATE TABLE IF NOT EXISTS staff_info (
   staff_id    SERIAL PRIMARY KEY,

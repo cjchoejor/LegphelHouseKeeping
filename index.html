@@ -418,11 +418,113 @@
       cursor: pointer;
     }
     .modal-actions button.ghost { background: #e5e7eb; color: var(--ink); }
+
+    /* ---- Login screen ---- */
+    .login-screen {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+    }
+    .login-box {
+      background: #fff;
+      border-radius: 14px;
+      padding: 26px 22px;
+      width: 100%;
+      max-width: 360px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+      display: flex;
+      flex-direction: column;
+    }
+    .login-logo { height: 56px; width: auto; align-self: center; margin-bottom: 10px; }
+    .login-box h2 { margin: 0 0 18px; text-align: center; color: var(--ink); font-weight: 600; }
+    .login-box label { font-size: 12px; color: var(--muted); margin: 8px 0 4px; }
+    .login-box input {
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      font-size: 17px;
+    }
+    .login-box input:focus { outline: none; border-color: var(--blue); }
+    #loginPin { letter-spacing: 6px; text-align: center; }
+    .login-error { color: #c0392b; font-size: 13px; min-height: 18px; margin: 8px 0 0; text-align: center; }
+    #loginBtn {
+      margin-top: 14px;
+      padding: 13px;
+      border: none;
+      border-radius: 8px;
+      background: var(--blue);
+      color: #fff;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    #loginBtn:disabled { opacity: 0.6; }
+
+    /* ---- User bar (top of header) ---- */
+    .userbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 10px;
+      font-size: 13px;
+    }
+    .userbar #userLabel { font-weight: 600; opacity: 0.95; }
+    .userbar-actions { display: flex; gap: 6px; }
+    .userbar-actions button {
+      border: none;
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      background: rgba(255, 255, 255, 0.2);
+      color: #fff;
+    }
+    .userbar-actions button:active { transform: scale(0.97); }
+
+    /* ---- Admin console fields ---- */
+    .admin-field { display: flex; flex-direction: column; gap: 4px; }
+    .admin-field label { font-size: 13px; color: var(--muted); }
+    .admin-field input {
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      font-size: 16px;
+    }
+    .admin-msg { font-size: 13px; min-height: 18px; }
+    .admin-msg.ok { color: #15803d; }
+    .admin-msg.err { color: #c0392b; }
   </style>
 </head>
 
 <body>
+  <div id="loginScreen" class="login-screen">
+    <form class="login-box" id="loginForm" autocomplete="on">
+      <img src="legphel-logo.png" alt="Legphel" class="login-logo">
+      <h2>Housekeeping Login</h2>
+      <label for="loginUser">Username</label>
+      <input type="text" id="loginUser" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false">
+      <label for="loginPin">PIN</label>
+      <input type="password" id="loginPin" inputmode="numeric" pattern="[0-9]*" autocomplete="current-password">
+      <div id="loginError" class="login-error"></div>
+      <button type="submit" id="loginBtn">Log in</button>
+    </form>
+  </div>
+
   <header>
+    <div class="userbar">
+      <span id="userLabel"></span>
+      <span class="userbar-actions">
+        <button id="adminBtn" type="button" style="display:none">⚙ Admin</button>
+        <button id="logoutBtn" type="button">Logout</button>
+      </span>
+    </div>
     <div class="brand">
       <img src="legphel-logo.png" alt="Legphel logo" class="logo">
       <div class="brand-text">
@@ -451,6 +553,26 @@
     <div id="content" class="status">Loading…</div>
   </main>
 
+  <div id="adminModal" class="modal" style="display:none">
+    <div class="modal-box">
+      <h3 style="margin:0">⚙ Admin Console</h3>
+      <p class="modal-hint" style="text-align:left">How many days around today housekeeping is allowed to view:</p>
+      <div class="admin-field">
+        <label for="daysBefore">Days before today</label>
+        <input type="number" id="daysBefore" min="0" max="60" inputmode="numeric">
+      </div>
+      <div class="admin-field">
+        <label for="daysAfter">Days after today</label>
+        <input type="number" id="daysAfter" min="0" max="60" inputmode="numeric">
+      </div>
+      <div id="adminMsg" class="admin-msg"></div>
+      <div class="modal-actions">
+        <button id="savePolicyBtn">Save</button>
+        <button id="closeAdminBtn" class="ghost">Close</button>
+      </div>
+    </div>
+  </div>
+
   <div id="imgModal" class="modal" style="display:none">
     <div class="modal-box">
       <p class="modal-hint">Press &amp; hold the image to save it to Photos — or tap Share / Save.</p>
@@ -463,16 +585,36 @@
   </div>
 
   <script>
-    // On Netlify (https) we go through the serverless proxy so the browser never
-    // has to call the http:// API directly (which https pages block).
-    // Opened as a local file, we call the API directly so you can test quickly.
-    const onHttps = location.protocol === 'https:';
-    const apiBase = onHttps
-      ? '/.netlify/functions/reservations'
-      : 'http://119.2.105.142:3800/api/reservations_summary_for_mam2';
+    // DEV = opened as a local file (file://): skip login and call the hotel API directly,
+    // so the layout can still be previewed without a server. On the real https site,
+    // login is required and all data goes through the secured Netlify proxy.
+    const DEV = location.protocol === 'file:';
+    const FN = '/.netlify/functions';
+    const apiBase = DEV
+      ? 'http://119.2.105.142:3800/api/reservations_summary_for_mam2'
+      : FN + '/reservations';
 
     let lastData = null;        // cache so toggling views doesn't re-fetch
     let view = 'cards';         // 'cards' | 'table'
+    let auth = null;            // { token, user:{username,full_name,role}, policy:{days_before,days_after} }
+
+    // ---- auth storage ----
+    function loadAuth() { try { return JSON.parse(localStorage.getItem('hk_auth')); } catch { return null; } }
+    function saveAuth(a) { localStorage.setItem('hk_auth', JSON.stringify(a)); }
+    function clearAuth() { localStorage.removeItem('hk_auth'); }
+    function tokenValid(a) {
+      if (!a || !a.token) return false;
+      try {
+        let part = a.token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+        part = part.padEnd(part.length + (4 - part.length % 4) % 4, '=');
+        const payload = JSON.parse(atob(part));
+        return payload.exp * 1000 > Date.now();
+      } catch { return false; }
+    }
+    function roleLabel(r) {
+      return r === 'admin' ? 'Admin' : r === 'gm' ? 'General Manager' : 'Housekeeping';
+    }
+    function addDays(date, n) { const d = new Date(date); d.setDate(d.getDate() + n); return d; }
 
     // ---- date helpers (Asia/Thimphu, UTC+6) ----
     function thimphuToday() {
@@ -744,7 +886,12 @@
       el.textContent = 'Loading…';
 
       try {
-        const resp = await fetch(`${apiBase}?start_date=${start}&end_date=${end}`);
+        const headers = auth ? { Authorization: 'Bearer ' + auth.token } : {};
+        const resp = await fetch(`${apiBase}?start_date=${start}&end_date=${end}`, { headers });
+        if (resp.status === 401) { // token missing/expired
+          clearAuth(); auth = null; showLogin();
+          return;
+        }
         if (!resp.ok) throw new Error('Could not load data (' + resp.status + ')');
         lastData = await resp.json();
         draw();
@@ -761,21 +908,136 @@
       document.documentElement.style.setProperty('--header-h', h + 'px');
     }
 
-    function init() {
-      const today = thimphuToday();
-      const tomorrow = nextDay(today);
+    // ---- login / logout / role UI ----
+    function showLogin() {
+      document.getElementById('loginScreen').style.display = 'flex';
+      document.getElementById('loginPin').value = '';
+      document.getElementById('loginUser').focus();
+    }
+    function hideLogin() {
+      document.getElementById('loginScreen').style.display = 'none';
+    }
+
+    async function handleLogin(e) {
+      e.preventDefault();
+      const username = document.getElementById('loginUser').value.trim();
+      const pin = document.getElementById('loginPin').value;
+      const errEl = document.getElementById('loginError');
+      const btn = document.getElementById('loginBtn');
+      errEl.textContent = '';
+      if (!username || !pin) { errEl.textContent = 'Enter username and PIN'; return; }
+      btn.disabled = true; const lbl = btn.textContent; btn.textContent = 'Logging in…';
+      try {
+        const resp = await fetch(FN + '/login', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ username, password: pin }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) { errEl.textContent = data.error || 'Login failed'; return; }
+        auth = data; saveAuth(auth);
+        document.getElementById('loginPin').value = '';
+        startApp();
+      } catch (err) {
+        errEl.textContent = 'Network error: ' + err.message;
+      } finally {
+        btn.disabled = false; btn.textContent = lbl;
+      }
+    }
+
+    function logout() {
+      clearAuth(); auth = null; lastData = null;
+      document.getElementById('adminModal').style.display = 'none';
+      document.getElementById('imgModal').style.display = 'none';
+      showLogin();
+    }
+
+    function applyRoleUI() {
+      const role = auth && auth.user ? auth.user.role : null;
+      document.getElementById('userLabel').textContent =
+        auth ? `${auth.user.full_name} · ${roleLabel(role)}` : '';
+      document.getElementById('adminBtn').style.display =
+        (role === 'admin' || role === 'gm') ? '' : 'none';
+
+      // Housekeeping: lock the date pickers to the allowed window.
       const startEl = document.getElementById('startDate');
       const endEl = document.getElementById('endDate');
-      startEl.value = fmt(today);
-      endEl.value = fmt(tomorrow);
+      if (role === 'housekeeping') {
+        const today = thimphuToday();
+        const before = (auth.policy && auth.policy.days_before != null) ? auth.policy.days_before : 1;
+        const after = (auth.policy && auth.policy.days_after != null) ? auth.policy.days_after : 1;
+        const minD = fmt(addDays(today, -before));
+        const maxD = fmt(addDays(today, after));
+        [startEl, endEl].forEach(el => { el.min = minD; el.max = maxD; });
+      } else {
+        [startEl, endEl].forEach(el => { el.removeAttribute('min'); el.removeAttribute('max'); });
+      }
+    }
 
-      // keep end = start + 1 day when start changes (matches old behaviour)
+    function startApp() {
+      hideLogin();
+      applyRoleUI();
+      initDates();
+      syncHeaderHeight();
+      fetchAndRender();
+    }
+
+    function initDates() {
+      const today = thimphuToday();
+      const tomorrow = nextDay(today);
+      document.getElementById('startDate').value = fmt(today);
+      document.getElementById('endDate').value = fmt(tomorrow);
+    }
+
+    // ---- admin console ----
+    async function openAdmin() {
+      const msg = document.getElementById('adminMsg');
+      msg.textContent = ''; msg.className = 'admin-msg';
+      const isAdmin = auth && auth.user && auth.user.role === 'admin';
+      document.getElementById('savePolicyBtn').style.display = isAdmin ? '' : 'none';
+      document.getElementById('daysBefore').disabled = !isAdmin;
+      document.getElementById('daysAfter').disabled = !isAdmin;
+      document.getElementById('adminModal').style.display = 'flex';
+      try {
+        const resp = await fetch(FN + '/policy', { headers: { Authorization: 'Bearer ' + auth.token } });
+        const data = await resp.json();
+        if (!resp.ok) { msg.textContent = data.error || 'Could not load'; msg.className = 'admin-msg err'; return; }
+        document.getElementById('daysBefore').value = data.days_before;
+        document.getElementById('daysAfter').value = data.days_after;
+      } catch (err) {
+        msg.textContent = 'Network error: ' + err.message; msg.className = 'admin-msg err';
+      }
+    }
+
+    async function savePolicy() {
+      const msg = document.getElementById('adminMsg');
+      msg.textContent = 'Saving…'; msg.className = 'admin-msg';
+      const days_before = document.getElementById('daysBefore').value;
+      const days_after = document.getElementById('daysAfter').value;
+      try {
+        const resp = await fetch(FN + '/policy', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', Authorization: 'Bearer ' + auth.token },
+          body: JSON.stringify({ days_before, days_after }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) { msg.textContent = data.error || 'Save failed'; msg.className = 'admin-msg err'; return; }
+        msg.textContent = 'Saved.'; msg.className = 'admin-msg ok';
+        if (auth.policy) { auth.policy.days_before = data.days_before; auth.policy.days_after = data.days_after; saveAuth(auth); }
+      } catch (err) {
+        msg.textContent = 'Network error: ' + err.message; msg.className = 'admin-msg err';
+      }
+    }
+
+    // ---- wire up static listeners once ----
+    function wireUp() {
+      const startEl = document.getElementById('startDate');
+      const endEl = document.getElementById('endDate');
       startEl.addEventListener('change', function () {
         if (this.value) endEl.value = fmt(nextDay(new Date(this.value)));
       });
 
       document.getElementById('fetchBtn').addEventListener('click', fetchAndRender);
-
       document.getElementById('viewToggleBtn').addEventListener('click', function () {
         view = view === 'cards' ? 'table' : 'cards';
         this.textContent = view === 'cards' ? '▦ Table view' : '▤ Card view';
@@ -784,20 +1046,32 @@
         syncHeaderHeight();
         window.scrollTo(0, 0);
       });
-
       document.getElementById('saveImgBtn').addEventListener('click', saveTableImage);
       document.getElementById('shareImgBtn').addEventListener('click', shareImage);
       document.getElementById('closeModalBtn').addEventListener('click', function () {
         document.getElementById('imgModal').style.display = 'none';
       });
 
-      syncHeaderHeight();
-      window.addEventListener('resize', syncHeaderHeight);
+      document.getElementById('loginForm').addEventListener('submit', handleLogin);
+      document.getElementById('logoutBtn').addEventListener('click', logout);
+      document.getElementById('adminBtn').addEventListener('click', openAdmin);
+      document.getElementById('savePolicyBtn').addEventListener('click', savePolicy);
+      document.getElementById('closeAdminBtn').addEventListener('click', function () {
+        document.getElementById('adminModal').style.display = 'none';
+      });
 
-      fetchAndRender();
+      window.addEventListener('resize', syncHeaderHeight);
     }
 
-    document.addEventListener('DOMContentLoaded', init);
+    function boot() {
+      wireUp();
+      if (DEV) { startApp(); return; }       // local file: no login
+      auth = loadAuth();
+      if (tokenValid(auth)) startApp();
+      else { clearAuth(); auth = null; showLogin(); }
+    }
+
+    document.addEventListener('DOMContentLoaded', boot);
   </script>
 </body>
 
