@@ -16,12 +16,25 @@ exports.handler = async (event) => {
   const newPin = (body.new_pin || '').trim();
   if (!/^\d{4,6}$/.test(newPin)) return json(400, { error: 'New PIN must be 4 to 6 digits' });
 
-  // ---- admin resetting someone else's PIN ----
+  // ---- resetting someone else's PIN ----
   if (body.target_user_id) {
-    if (user.role !== 'admin') return json(403, { error: 'Only an admin can reset others' });
+    if (user.role !== 'admin' && user.role !== 'gm') {
+      return json(403, { error: "You can't reset other users' PINs" });
+    }
     try {
-      const t = await sql`SELECT username FROM users WHERE user_id = ${body.target_user_id}`;
+      const t = await sql`
+        SELECT u.username, s.role
+        FROM users u JOIN staff_info s ON s.staff_id = u.staff_id
+        WHERE u.user_id = ${body.target_user_id}`;
       if (!t.length) return json(404, { error: 'User not found' });
+
+      const targetRole = t[0].role;
+      // admin: anyone except another admin.  gm: housekeeping only.
+      const allowed =
+        (user.role === 'admin' && targetRole !== 'admin') ||
+        (user.role === 'gm' && targetRole === 'housekeeping');
+      if (!allowed) return json(403, { error: "You're not allowed to reset this user's PIN" });
+
       const hash = await hashPassword(newPin);
       await sql`
         UPDATE users

@@ -534,6 +534,19 @@
       cursor: pointer;
     }
     .admin-body { max-width: 640px; margin: 0 auto; padding: 16px 14px 40px; }
+    .admin-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+    .tab-btn {
+      flex: 1 1 auto;
+      padding: 10px 8px;
+      border: none;
+      border-radius: 8px;
+      background: #e5e7eb;
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .tab-btn.active { background: var(--blue); color: #fff; }
     .admin-card {
       background: #fff;
       border-radius: 12px;
@@ -594,6 +607,21 @@
       color: #3730a3;
       margin-left: 6px;
     }
+
+    /* ---- Activity log ---- */
+    .log-list { display: flex; flex-direction: column; gap: 6px; }
+    .log-item {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      font-size: 13px;
+      flex-wrap: wrap;
+    }
+    .log-main { font-weight: 500; }
+    .log-time { color: var(--muted); font-size: 12px; white-space: nowrap; }
   </style>
 </head>
 
@@ -653,68 +681,92 @@
       <h2>Admin Console</h2>
     </div>
     <div class="admin-body">
+      <div class="admin-tabs">
+        <button class="tab-btn active" type="button" data-tab="tabWindow">Date Window</button>
+        <button class="tab-btn" type="button" data-tab="tabStaff">Staff Accounts</button>
+        <button class="tab-btn" type="button" id="tabAddBtn" data-tab="tabAdd">Add User</button>
+        <button class="tab-btn" type="button" id="tabLogsBtn" data-tab="tabLogs">Activity</button>
+      </div>
 
-      <!-- Date window -->
-      <section class="admin-card">
-        <h3>Housekeeping date window</h3>
-        <p class="admin-note">How many days around today housekeeping is allowed to view.</p>
-        <div class="admin-field">
-          <label for="daysBefore">Days before today</label>
-          <input type="number" id="daysBefore" min="0" max="60" inputmode="numeric">
+      <!-- Tab: Date window -->
+      <section id="tabWindow" class="tab-panel">
+        <div class="admin-card">
+          <h3>Housekeeping date window</h3>
+          <p class="admin-note">How many days around today housekeeping is allowed to view.</p>
+          <div class="admin-field">
+            <label for="daysBefore">Days before today</label>
+            <input type="number" id="daysBefore" min="0" max="60" inputmode="numeric">
+          </div>
+          <div class="admin-field">
+            <label for="daysAfter">Days after today</label>
+            <input type="number" id="daysAfter" min="0" max="60" inputmode="numeric">
+          </div>
+          <div class="row-actions"><button id="savePolicyBtn" type="button">Save window</button></div>
+          <div id="adminMsg" class="admin-msg"></div>
         </div>
-        <div class="admin-field">
-          <label for="daysAfter">Days after today</label>
-          <input type="number" id="daysAfter" min="0" max="60" inputmode="numeric">
-        </div>
-        <div class="row-actions"><button id="savePolicyBtn" type="button">Save window</button></div>
-        <div id="adminMsg" class="admin-msg"></div>
       </section>
 
-      <!-- Manage staff accounts (admin only) -->
-      <section class="admin-card" id="usersSection">
-        <h3>Staff accounts</h3>
-        <div id="usersList" class="users-list"></div>
-
-        <h4>Add a new user</h4>
-        <div class="admin-field">
-          <label for="nuName">Full name</label>
-          <input type="text" id="nuName">
+      <!-- Tab: Staff accounts (+ change my PIN) -->
+      <section id="tabStaff" class="tab-panel" style="display:none">
+        <div class="admin-card">
+          <h3>Staff accounts</h3>
+          <div id="usersList" class="users-list"></div>
         </div>
-        <div class="admin-field">
-          <label for="nuUser">Username</label>
-          <input type="text" id="nuUser" autocapitalize="off" autocorrect="off" spellcheck="false">
+        <div class="admin-card">
+          <h3>Change my PIN</h3>
+          <div class="admin-field">
+            <label for="myOldPin">Current PIN</label>
+            <input type="password" id="myOldPin" inputmode="numeric">
+          </div>
+          <div class="admin-field">
+            <label for="myNewPin">New PIN</label>
+            <input type="password" id="myNewPin" inputmode="numeric">
+          </div>
+          <div class="row-actions"><button id="changePinBtn" type="button">Update PIN</button></div>
+          <div id="pinMsg" class="admin-msg"></div>
         </div>
-        <div class="admin-field">
-          <label for="nuRole">Role</label>
-          <select id="nuRole">
-            <option value="housekeeping">Housekeeping</option>
-            <option value="gm">General Manager</option>
-            <option value="admin">Admin</option>
-          </select>
-        </div>
-        <div class="admin-field">
-          <label for="nuPin">PIN (4–6 digits)</label>
-          <input type="text" id="nuPin" inputmode="numeric" maxlength="6">
-        </div>
-        <div class="row-actions"><button id="addUserBtn" type="button">Create user</button></div>
-        <div id="userMsg" class="admin-msg"></div>
       </section>
 
-      <!-- Change own PIN -->
-      <section class="admin-card">
-        <h3>Change my PIN</h3>
-        <div class="admin-field">
-          <label for="myOldPin">Current PIN</label>
-          <input type="password" id="myOldPin" inputmode="numeric">
+      <!-- Tab: Add a new user (admin only) -->
+      <section id="tabAdd" class="tab-panel" style="display:none">
+        <div class="admin-card">
+          <h3>Add a new user</h3>
+          <div class="admin-field">
+            <label for="nuName">Full name</label>
+            <input type="text" id="nuName">
+          </div>
+          <div class="admin-field">
+            <label for="nuUser">Username</label>
+            <input type="text" id="nuUser" autocapitalize="off" autocorrect="off" spellcheck="false">
+          </div>
+          <div class="admin-field">
+            <label for="nuRole">Role</label>
+            <select id="nuRole">
+              <option value="housekeeping">Housekeeping</option>
+              <option value="gm">General Manager</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          <div class="admin-field">
+            <label for="nuPin">PIN (4–6 digits)</label>
+            <input type="text" id="nuPin" inputmode="numeric" maxlength="6">
+          </div>
+          <div class="row-actions"><button id="addUserBtn" type="button">Create user</button></div>
+          <div id="userMsg" class="admin-msg"></div>
         </div>
-        <div class="admin-field">
-          <label for="myNewPin">New PIN</label>
-          <input type="password" id="myNewPin" inputmode="numeric">
-        </div>
-        <div class="row-actions"><button id="changePinBtn" type="button">Update PIN</button></div>
-        <div id="pinMsg" class="admin-msg"></div>
       </section>
 
+      <!-- Tab: Activity log (admin only) -->
+      <section id="tabLogs" class="tab-panel" style="display:none">
+        <div class="admin-card">
+          <h3>Recent logins</h3>
+          <div id="accessList" class="log-list"></div>
+        </div>
+        <div class="admin-card">
+          <h3>Recent changes</h3>
+          <div id="changeList" class="log-list"></div>
+        </div>
+      </section>
     </div>
   </div>
 
@@ -1165,19 +1217,27 @@
       return Object.assign({ Authorization: 'Bearer ' + auth.token }, extra || {});
     }
 
+    function showTab(id) {
+      document.querySelectorAll('.tab-panel').forEach(p => { p.style.display = p.id === id ? '' : 'none'; });
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === id));
+      if (id === 'tabLogs') loadLogs();
+    }
+
     function openAdmin() {
       const isAdmin = auth && auth.user && auth.user.role === 'admin';
-      // date-window section: admin can edit, GM can only view
+      // date-window: admin can edit, GM can only view
       document.getElementById('daysBefore').disabled = !isAdmin;
       document.getElementById('daysAfter').disabled = !isAdmin;
       document.getElementById('savePolicyBtn').style.display = isAdmin ? '' : 'none';
-      // staff management is admin-only
-      document.getElementById('usersSection').style.display = isAdmin ? '' : 'none';
+      // only admin can add new users or see the activity log
+      document.getElementById('tabAddBtn').style.display = isAdmin ? '' : 'none';
+      document.getElementById('tabLogsBtn').style.display = isAdmin ? '' : 'none';
 
+      showTab('tabWindow');
       document.getElementById('adminPage').style.display = 'block';
       window.scrollTo(0, 0);
       loadPolicy();
-      if (isAdmin) loadUsers();
+      loadUsers(); // admin + gm both see the staff list (reset buttons differ by role)
     }
 
     function closeAdmin() { document.getElementById('adminPage').style.display = 'none'; }
@@ -1225,19 +1285,26 @@
     function renderUsers(users) {
       const list = document.getElementById('usersList');
       if (!users.length) { list.innerHTML = '<p class="admin-note">No users yet.</p>'; return; }
+      const myRole = auth.user.role;
       list.innerHTML = users.map(u => {
         const last = u.last_login
           ? new Date(u.last_login).toLocaleString('en-GB', { timeZone: 'Asia/Thimphu' })
           : 'never';
+        // admin: reset anyone except admins.  gm: reset housekeeping only.
+        const canReset = (myRole === 'admin' && u.role !== 'admin') ||
+                         (myRole === 'gm' && u.role === 'housekeeping');
+        // only admin can delete, and never an admin account
+        const canDelete = (myRole === 'admin' && u.role !== 'admin');
+        let actions = '';
+        if (canReset) actions += `<button class="btn-reset" data-id="${u.user_id}" data-name="${escapeHtml(u.username)}">Reset PIN</button>`;
+        if (canDelete) actions += `<button class="btn-del" data-id="${u.user_id}" data-name="${escapeHtml(u.username)}">Delete</button>`;
+        if (!actions) actions = '<span class="u-sub">—</span>';
         return `<div class="user-row">
           <div class="u-main">
             <span class="u-name">${escapeHtml(u.full_name)}<span class="role-pill">${roleLabel(u.role)}</span></span>
             <div class="u-sub">@${escapeHtml(u.username)} · last login: ${escapeHtml(last)}</div>
           </div>
-          <div class="u-actions">
-            <button class="btn-reset" data-id="${u.user_id}" data-name="${escapeHtml(u.username)}">Reset PIN</button>
-            <button class="btn-del" data-id="${u.user_id}" data-name="${escapeHtml(u.username)}">Delete</button>
-          </div>
+          <div class="u-actions">${actions}</div>
         </div>`;
       }).join('');
       list.querySelectorAll('.btn-reset').forEach(b =>
@@ -1316,6 +1383,62 @@
       } catch (err) { msg.textContent = 'Network error: ' + err.message; msg.className = 'admin-msg err'; }
     }
 
+    // ---- activity log ----
+    function fmtTime(ts) {
+      return ts ? new Date(ts).toLocaleString('en-GB', { timeZone: 'Asia/Thimphu' }) : '';
+    }
+
+    function describeChange(c) {
+      const d = c.details || {};
+      const nw = d.new || {};
+      switch (c.change_type) {
+        case 'policy_update':
+          return `Set housekeeping window to ${nw.days_before} day(s) before / ${nw.days_after} day(s) after`;
+        case 'user_create':
+          return `Created user @${d.username} (${roleLabel(d.role)})`;
+        case 'user_delete':
+          return `Deleted user @${d.username}`;
+        case 'password_change':
+          return d.by === 'self' ? 'Changed own PIN' : `Reset PIN for @${d.target}`;
+        default:
+          return c.change_type;
+      }
+    }
+
+    function renderAccess(rows) {
+      const el = document.getElementById('accessList');
+      if (!rows.length) { el.innerHTML = '<p class="admin-note">No logins yet.</p>'; return; }
+      el.innerHTML = rows.map(r => {
+        const act = r.action === 'login' ? 'logged in' : escapeHtml(r.action);
+        return `<div class="log-item">
+          <span class="log-main">@${escapeHtml(r.username || '?')}<span class="role-pill">${roleLabel(r.role)}</span> ${act}</span>
+          <span class="log-time">${escapeHtml(fmtTime(r.at))}</span>
+        </div>`;
+      }).join('');
+    }
+
+    function renderChanges(rows) {
+      const el = document.getElementById('changeList');
+      if (!rows.length) { el.innerHTML = '<p class="admin-note">No changes yet.</p>'; return; }
+      el.innerHTML = rows.map(c => `<div class="log-item">
+          <span class="log-main">${escapeHtml(describeChange(c))} <span class="u-sub">— by @${escapeHtml(c.changed_by || '?')}</span></span>
+          <span class="log-time">${escapeHtml(fmtTime(c.changed_at))}</span>
+        </div>`).join('');
+    }
+
+    async function loadLogs() {
+      const a = document.getElementById('accessList');
+      const c = document.getElementById('changeList');
+      a.innerHTML = '<p class="admin-note">Loading…</p>'; c.innerHTML = '';
+      try {
+        const resp = await fetch(FN + '/logs', { headers: authHeaders() });
+        const data = await resp.json();
+        if (!resp.ok) { a.innerHTML = `<p class="admin-msg err">${escapeHtml(data.error || 'Could not load')}</p>`; return; }
+        renderAccess(data.access || []);
+        renderChanges(data.changes || []);
+      } catch (err) { a.innerHTML = '<p class="admin-msg err">Network error</p>'; }
+    }
+
     // ---- wire up static listeners once ----
     function wireUp() {
       const startEl = document.getElementById('startDate');
@@ -1343,6 +1466,8 @@
       document.getElementById('logoutBtn').addEventListener('click', logout);
       document.getElementById('adminBtn').addEventListener('click', openAdmin);
       document.getElementById('adminBackBtn').addEventListener('click', closeAdmin);
+      document.querySelectorAll('.tab-btn').forEach(b =>
+        b.addEventListener('click', () => showTab(b.dataset.tab)));
       document.getElementById('savePolicyBtn').addEventListener('click', savePolicy);
       document.getElementById('addUserBtn').addEventListener('click', addUser);
       document.getElementById('changePinBtn').addEventListener('click', changeMyPin);
