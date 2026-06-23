@@ -26,8 +26,8 @@ exports.handler = async (event) => {
 
   // ---- create ----
   if (method === 'POST') {
-    const user = authUser(event, ['admin']);
-    if (!user) return json(403, { error: 'Only an admin can add users' });
+    const user = authUser(event, ['admin', 'gm']);
+    if (!user) return json(403, { error: 'Not allowed to add users' });
 
     let body;
     try { body = JSON.parse(event.body || '{}'); } catch { return json(400, { error: 'Bad JSON' }); }
@@ -38,6 +38,7 @@ exports.handler = async (event) => {
 
     if (!full_name || !username || !pin) return json(400, { error: 'Name, username and PIN are required' });
     if (!ROLES.includes(role)) return json(400, { error: 'Pick a valid role' });
+    if (user.role === 'gm' && role === 'admin') return json(403, { error: 'A GM cannot create admin accounts' });
     if (!/^\d{4,6}$/.test(pin)) return json(400, { error: 'PIN must be 4 to 6 digits' });
 
     try {
@@ -63,8 +64,8 @@ exports.handler = async (event) => {
 
   // ---- delete ----
   if (method === 'DELETE') {
-    const user = authUser(event, ['admin']);
-    if (!user) return json(403, { error: 'Only an admin can remove users' });
+    const user = authUser(event, ['admin', 'gm']);
+    if (!user) return json(403, { error: 'Not allowed to remove users' });
     const id = (event.queryStringParameters || {}).user_id;
     if (!id) return json(400, { error: 'user_id is required' });
 
@@ -75,6 +76,10 @@ exports.handler = async (event) => {
         WHERE u.user_id = ${id}`;
       if (!target.length) return json(404, { error: 'User not found' });
       if (target[0].username === user.username) return json(400, { error: "You can't delete your own account" });
+      // a GM may only delete housekeeping accounts (not admins or other GMs)
+      if (user.role === 'gm' && target[0].role !== 'housekeeping') {
+        return json(403, { error: 'A GM can only delete housekeeping accounts' });
+      }
 
       // deleting the staff row cascades to the users row (FK ON DELETE CASCADE)
       await sql`DELETE FROM staff_info WHERE staff_id = ${target[0].staff_id}`;

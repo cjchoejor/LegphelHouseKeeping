@@ -1276,13 +1276,20 @@
 
     function openAdmin() {
       const isAdmin = auth && auth.user && auth.user.role === 'admin';
-      // date-window: admin can edit, GM can only view
-      document.getElementById('daysBefore').disabled = !isAdmin;
-      document.getElementById('daysAfter').disabled = !isAdmin;
-      document.getElementById('savePolicyBtn').style.display = isAdmin ? '' : 'none';
-      // only admin can add new users or see the activity log
-      document.getElementById('tabAddBtn').style.display = isAdmin ? '' : 'none';
-      document.getElementById('tabLogsBtn').style.display = isAdmin ? '' : 'none';
+      const canManage = isAdmin || (auth.user.role === 'gm');
+      // date-window: admin + gm can edit
+      document.getElementById('daysBefore').disabled = !canManage;
+      document.getElementById('daysAfter').disabled = !canManage;
+      document.getElementById('savePolicyBtn').style.display = canManage ? '' : 'none';
+      // admin + gm can add users and see the activity log
+      document.getElementById('tabAddBtn').style.display = canManage ? '' : 'none';
+      document.getElementById('tabLogsBtn').style.display = canManage ? '' : 'none';
+      // a GM may not create admin accounts — hide that option for them
+      const adminOpt = document.querySelector('#nuRole option[value="admin"]');
+      if (adminOpt) adminOpt.hidden = !isAdmin;
+      if (!isAdmin && document.getElementById('nuRole').value === 'admin') {
+        document.getElementById('nuRole').value = 'housekeeping';
+      }
 
       showTab('tabWindow');
       document.getElementById('adminPage').style.display = 'block';
@@ -1344,8 +1351,9 @@
         // admin: reset anyone.  gm: reset housekeeping only.
         const canReset = (myRole === 'admin') ||
                          (myRole === 'gm' && u.role === 'housekeeping');
-        // admin can delete anyone except their own account
-        const canDelete = (myRole === 'admin') && (u.username !== auth.user.username);
+        // admin: delete anyone but self.  gm: delete housekeeping only.
+        const canDelete = (myRole === 'admin' && u.username !== auth.user.username) ||
+                          (myRole === 'gm' && u.role === 'housekeeping');
         let actions = '';
         if (canReset) actions += `<button class="btn-reset" data-id="${u.user_id}" data-name="${escapeHtml(u.username)}">Reset PIN</button>`;
         if (canDelete) actions += `<button class="btn-del" data-id="${u.user_id}" data-name="${escapeHtml(u.username)}">Delete</button>`;

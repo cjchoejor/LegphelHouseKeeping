@@ -4,8 +4,8 @@ const { json, authUser, sql } = require('./_lib');
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'GET') return json(405, { error: 'Use GET' });
-  const user = authUser(event, ['admin']);
-  if (!user) return json(403, { error: 'Admins only' });
+  const user = authUser(event, ['admin', 'gm']);
+  if (!user) return json(403, { error: 'Not allowed' });
 
   try {
     const access = await sql`

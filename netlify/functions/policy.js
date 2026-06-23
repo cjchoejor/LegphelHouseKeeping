@@ -16,8 +16,8 @@ exports.handler = async (event) => {
   }
 
   if (event.httpMethod === 'POST') {
-    const user = authUser(event, ['admin']);
-    if (!user) return json(403, { error: 'Only an admin can change this' });
+    const user = authUser(event, ['admin', 'gm']);
+    if (!user) return json(403, { error: 'Not allowed to change this' });
 
     let body;
     try { body = JSON.parse(event.body || '{}'); } catch { return json(400, { error: 'Bad JSON' }); }
