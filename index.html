@@ -608,6 +608,23 @@
       margin-left: 6px;
     }
 
+    /* ---- Progress bar (create user) ---- */
+    .progress { margin-top: 12px; }
+    .progress-track {
+      height: 10px;
+      background: #e5e7eb;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: var(--blue);
+      transition: width 0.2s ease;
+    }
+    .progress-label { font-size: 12px; color: var(--muted); margin-top: 5px; text-align: center; }
+    .progress-label.done { color: #15803d; font-weight: 700; }
+
     /* ---- Activity log ---- */
     .log-list { display: flex; flex-direction: column; gap: 6px; }
     .log-item {
@@ -752,6 +769,10 @@
             <input type="text" id="nuPin" inputmode="numeric" maxlength="6">
           </div>
           <div class="row-actions"><button id="addUserBtn" type="button">Create user</button></div>
+          <div id="userProgress" class="progress" style="display:none">
+            <div class="progress-track"><div id="userProgressFill" class="progress-fill"></div></div>
+            <div id="userProgressLabel" class="progress-label">0%</div>
+          </div>
           <div id="userMsg" class="admin-msg"></div>
         </div>
       </section>
@@ -1290,11 +1311,11 @@
         const last = u.last_login
           ? new Date(u.last_login).toLocaleString('en-GB', { timeZone: 'Asia/Thimphu' })
           : 'never';
-        // admin: reset anyone except admins.  gm: reset housekeeping only.
-        const canReset = (myRole === 'admin' && u.role !== 'admin') ||
+        // admin: reset anyone.  gm: reset housekeeping only.
+        const canReset = (myRole === 'admin') ||
                          (myRole === 'gm' && u.role === 'housekeeping');
-        // only admin can delete, and never an admin account
-        const canDelete = (myRole === 'admin' && u.role !== 'admin');
+        // admin can delete anyone except their own account
+        const canDelete = (myRole === 'admin') && (u.username !== auth.user.username);
         let actions = '';
         if (canReset) actions += `<button class="btn-reset" data-id="${u.user_id}" data-name="${escapeHtml(u.username)}">Reset PIN</button>`;
         if (canDelete) actions += `<button class="btn-del" data-id="${u.user_id}" data-name="${escapeHtml(u.username)}">Delete</button>`;
@@ -1314,13 +1335,36 @@
     }
 
     async function addUser() {
-      const msg = document.getElementById('userMsg'); msg.textContent = 'Creating…'; msg.className = 'admin-msg';
+      const msg = document.getElementById('userMsg'); msg.textContent = ''; msg.className = 'admin-msg';
       const payload = {
         full_name: document.getElementById('nuName').value.trim(),
         username: document.getElementById('nuUser').value.trim(),
         role: document.getElementById('nuRole').value,
         pin: document.getElementById('nuPin').value.trim(),
       };
+      // quick client-side check so we don't run the animation for an obvious miss
+      if (!payload.full_name || !payload.username || !payload.pin) {
+        msg.textContent = 'Name, username and PIN are required'; msg.className = 'admin-msg err'; return;
+      }
+
+      const btn = document.getElementById('addUserBtn');
+      const prog = document.getElementById('userProgress');
+      const fill = document.getElementById('userProgressFill');
+      const label = document.getElementById('userProgressLabel');
+
+      btn.disabled = true;
+      prog.style.display = 'block';
+      label.classList.remove('done');
+      let pct = 0;
+      fill.style.width = '0%';
+      label.textContent = '0%';
+      // creep up to 90% while the request is in flight (no real progress events to read)
+      const timer = setInterval(() => {
+        pct = Math.min(pct + Math.random() * 12 + 5, 90);
+        fill.style.width = pct + '%';
+        label.textContent = Math.round(pct) + '%';
+      }, 150);
+
       try {
         const resp = await fetch(FN + '/users', {
           method: 'POST',
@@ -1328,13 +1372,30 @@
           body: JSON.stringify(payload),
         });
         const data = await resp.json();
-        if (!resp.ok) { msg.textContent = data.error || 'Failed'; msg.className = 'admin-msg err'; return; }
-        msg.textContent = 'User created.'; msg.className = 'admin-msg ok';
+        clearInterval(timer);
+
+        if (!resp.ok) {
+          prog.style.display = 'none';
+          msg.textContent = data.error || 'Failed'; msg.className = 'admin-msg err';
+          return;
+        }
+
+        // complete the bar
+        fill.style.width = '100%';
+        label.textContent = `@${payload.username} created ✓`;
+        label.classList.add('done');
         document.getElementById('nuName').value = '';
         document.getElementById('nuUser').value = '';
         document.getElementById('nuPin').value = '';
         loadUsers();
-      } catch (err) { msg.textContent = 'Network error: ' + err.message; msg.className = 'admin-msg err'; }
+        setTimeout(() => { prog.style.display = 'none'; fill.style.width = '0%'; }, 2500);
+      } catch (err) {
+        clearInterval(timer);
+        prog.style.display = 'none';
+        msg.textContent = 'Network error: ' + err.message; msg.className = 'admin-msg err';
+      } finally {
+        btn.disabled = false;
+      }
     }
 
     async function resetPin(userId, username) {

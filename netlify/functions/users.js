@@ -75,7 +75,6 @@ exports.handler = async (event) => {
         WHERE u.user_id = ${id}`;
       if (!target.length) return json(404, { error: 'User not found' });
       if (target[0].username === user.username) return json(400, { error: "You can't delete your own account" });
-      if (target[0].role === 'admin') return json(403, { error: "Admin accounts can't be removed here" });
 
       // deleting the staff row cascades to the users row (FK ON DELETE CASCADE)
       await sql`DELETE FROM staff_info WHERE staff_id = ${target[0].staff_id}`;

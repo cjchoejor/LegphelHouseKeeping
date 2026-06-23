@@ -29,9 +29,9 @@ exports.handler = async (event) => {
       if (!t.length) return json(404, { error: 'User not found' });
 
       const targetRole = t[0].role;
-      // admin: anyone except another admin.  gm: housekeeping only.
+      // admin: anyone.  gm: housekeeping only.
       const allowed =
-        (user.role === 'admin' && targetRole !== 'admin') ||
+        user.role === 'admin' ||
         (user.role === 'gm' && targetRole === 'housekeeping');
       if (!allowed) return json(403, { error: "You're not allowed to reset this user's PIN" });
 
