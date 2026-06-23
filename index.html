@@ -766,6 +766,10 @@
             <input type="number" id="daysAfter" min="0" max="60" inputmode="numeric">
           </div>
           <div class="row-actions"><button id="savePolicyBtn" type="button">Save window</button></div>
+          <div id="policyProgress" class="progress" style="display:none">
+            <div class="progress-track"><div id="policyProgressFill" class="progress-fill"></div></div>
+            <div id="policyProgressLabel" class="progress-label">0%</div>
+          </div>
           <div id="adminMsg" class="admin-msg"></div>
         </div>
       </section>
@@ -1343,7 +1347,10 @@
     }
 
     async function savePolicy() {
-      const msg = document.getElementById('adminMsg'); msg.textContent = 'Saving…'; msg.className = 'admin-msg';
+      const msg = document.getElementById('adminMsg'); msg.textContent = ''; msg.className = 'admin-msg';
+      const btn = document.getElementById('savePolicyBtn');
+      btn.disabled = true;
+      const p = startProgress('policyProgress', 'policyProgressFill', 'policyProgressLabel');
       try {
         const resp = await fetch(FN + '/policy', {
           method: 'POST',
@@ -1354,10 +1361,14 @@
           }),
         });
         const data = await resp.json();
-        if (!resp.ok) { msg.textContent = data.error || 'Save failed'; msg.className = 'admin-msg err'; return; }
-        msg.textContent = 'Saved.'; msg.className = 'admin-msg ok';
+        if (!resp.ok) { p.fail(); msg.textContent = data.error || 'Save failed'; msg.className = 'admin-msg err'; return; }
+        p.done('Window saved ✓');
         if (auth.policy) { auth.policy.days_before = data.days_before; auth.policy.days_after = data.days_after; saveAuth(auth); }
-      } catch (err) { msg.textContent = 'Network error: ' + err.message; msg.className = 'admin-msg err'; }
+      } catch (err) {
+        p.fail(); msg.textContent = 'Network error: ' + err.message; msg.className = 'admin-msg err';
+      } finally {
+        btn.disabled = false;
+      }
     }
 
     async function loadUsers() {
