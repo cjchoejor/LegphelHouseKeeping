@@ -209,14 +209,38 @@
     }
     .card.blocked .room-no { color: #a17f00; }
 
-    .beds { font-size: 13px; color: var(--ink); text-align: right; white-space: nowrap; }
+    /* nowrap sits on the badges, not the box, so the bed and extra-bed badges
+       can fall onto separate lines on a narrow phone. */
+    .beds { font-size: 13px; color: var(--ink); text-align: right; }
     .beds .bed-badge {
+      display: inline-block;
       background: #fdeaea;
       color: #c0392b;
       padding: 3px 8px;
       border-radius: 8px;
       font-weight: 600;
+      white-space: nowrap;
     }
+
+    /* Extra beds: the count sits beside the bed badge, and the rooms that
+       actually carry one are flagged inline in the room list (602 with +2), so
+       the allocation reads without a card row or table column of its own.
+       Both are printed rather than hovered - there is no tooltip on a phone,
+       and a tooltip would not survive the PNG snapshot either. */
+    .eb-badge {
+      display: inline-block;
+      background: #ffedd5;
+      color: #9a3412;
+      padding: 3px 8px;
+      border-radius: 8px;
+      font-weight: 700;
+      margin-left: 6px;
+      white-space: nowrap;
+    }
+
+    .eb-mark { color: #b45309; font-weight: 700; }
+    .card.blocked .eb-mark { color: #7c4a00; }
+    table.grid td.eb-cell { color: #9a3412; font-weight: 700; }
 
     .cust { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
 
@@ -931,14 +955,46 @@
         ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m]));
     }
 
-    // Stack a "601, 602, 701" room list vertically so the frozen column
-    // stays narrow (grows taller, never wider) on a phone.
-    function stackRooms(roomNo) {
-      return String(roomNo ?? '')
-        .split(',')
-        .map(r => escapeHtml(r.trim()))
-        .filter(Boolean)
-        .join('<br>') || '—';
+    // extra_bed_allocation from the API is [{ room_no, extra_beds }] for the
+    // rooms that actually carry a bed; key it by room number for rendering.
+    // room_no arrives as a JSON number there but as text in the room list, so
+    // both sides are stringified before being matched.
+    function extraBedMap(allocation) {
+      const map = new Map();
+      (Array.isArray(allocation) ? allocation : []).forEach(a => {
+        const room = String(a && a.room_no != null ? a.room_no : '').trim();
+        const beds = Number(a && a.extra_beds) || 0;
+        if (room && beds > 0) map.set(room, beds);
+      });
+      return map;
+    }
+
+    // "601, 602, 701" -> one label per room, extra-bed rooms flagged in place
+    function roomLabels(roomNo, allocation) {
+      const map = extraBedMap(allocation);
+      const rooms = String(roomNo ?? '').split(',').map(r => r.trim()).filter(Boolean);
+      // a bed booked against a room missing from the list still gets shown
+      map.forEach((_, room) => { if (!rooms.includes(room)) rooms.push(room); });
+      return rooms.map(room => {
+        const beds = map.get(room);
+        return escapeHtml(room) + (beds ? `<sup class="eb-mark">+${beds}</sup>` : '');
+      });
+    }
+
+    // Stack the room list vertically so the frozen column stays narrow
+    // (grows taller, never wider) on a phone.
+    function stackRooms(roomNo, allocation) {
+      return roomLabels(roomNo, allocation).join('<br>') || '—';
+    }
+
+    // The same list on one line, for the card heading.
+    function inlineRooms(roomNo, allocation) {
+      return roomLabels(roomNo, allocation).join(', ') || '—';
+    }
+
+    function extraBedBadge(g) {
+      const total = Number(g.extra_beds) || 0;
+      return total ? `<span class="eb-badge">🛌 +${total} extra</span>` : '';
     }
 
     function bedText(king, twin) {
@@ -990,8 +1046,8 @@
 
           html += `<div class="card${stateClass}">
             <div class="card-top">
-              <span class="room-no">Room ${escapeHtml(g.room_no)}${blocked ? '<span class="blocked-tag">BLOCKED</span>' : ''}${staying ? '<span class="stay-tag">In-stay</span>' : ''}</span>
-              <span class="beds">${beds}</span>
+              <span class="room-no">Room ${inlineRooms(g.room_no, g.extra_bed_allocation)}${blocked ? '<span class="blocked-tag">BLOCKED</span>' : ''}${staying ? '<span class="stay-tag">In-stay</span>' : ''}</span>
+              <span class="beds">${beds}${extraBedBadge(g)}</span>
             </div>
             <div class="cust">${escapeHtml(g.primary_customer_name ?? '—')}</div>
             <div class="meta">
@@ -1027,7 +1083,7 @@
       </div>`;
     }
 
-    const TABLE_COLS = ['Room', 'Customer', 'Beds', 'Adults', 'Children',
+    const TABLE_COLS = ['Room', 'Customer', 'Beds', 'Extra Beds', 'Adults', 'Children',
       'Child 6+', 'Occ. in Rooms', 'Rooms Res.', 'Reserved By', 'Ref No', 'Special Preferences'];
 
     // builds just the <table>…</table> markup, shared by the on-screen view and the image snapshot
@@ -1066,11 +1122,13 @@
           const stateClass = blocked ? 'blocked-row' : (staying ? 'staying' : '');
           const beds = bedText(g.king_bed, g.twin_bed) || '—';
           const pref = (g.special_preferences || '').trim();
+          const extraBeds = Number(g.extra_beds) || 0;
           const alt = (rowIdx++ % 2 === 0) ? ' alt' : '';
           html += `<tr class="${stateClass}${alt}">
-            <td class="sticky-col">${stackRooms(g.room_no)}${blocked ? '<br>🔒' : ''}</td>
+            <td class="sticky-col">${stackRooms(g.room_no, g.extra_bed_allocation)}${blocked ? '<br>🔒' : ''}</td>
             <td class="cell-name">${escapeHtml(g.primary_customer_name ?? '—')}${staying ? ' <span class="stay-tag-sm">in-stay</span>' : ''}</td>
             <td>${beds}</td>
+            <td class="eb-cell">${extraBeds || '—'}</td>
             <td>${g.adults ?? 0}</td>
             <td>${g.children ?? 0}</td>
             <td>${g.children_above_six ?? 0}</td>
